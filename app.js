@@ -1,8 +1,12 @@
 const STORAGE_KEY = "luna-puppy-passport-v1";
 
 const defaultState = {
-  profile: { name: "Луна", breed: "Французький бульдог", birthDate: "", sex: "female", color: "", chip: "", notes: "" },
-  passport: { passportNumber: "", vet: "", vetPhone: "", lastVisit: "", medicalNotes: "" },
+  profile: { name: "Луна", breed: "Французький бульдог", birthDate: "2025-06-21", sex: "female", color: "", chip: "", notes: "Вид: собака. Дані перенесено з фото ветеринарного паспорту." },
+  passport: { passportNumber: "UA 145168", vet: "", vetPhone: "", lastVisit: "2025-09-02", medicalNotes: "На наданих фото мікрочип не зазначений. Перевірте дані з оригіналом паспорту перед важливим візитом або поїздкою." },
+  vaccinations: [
+    { id: "vax-2025-06-11", date: "2025-06-11", validUntil: "2026-06-11", name: "Biocan DHPPi/L4", batch: "076032", productExpiry: "2027-07", note: "Зчитано з фото ветпаспорту" },
+    { id: "vax-2025-09-02", date: "2025-09-02", validUntil: "2026-09-02", name: "Biocan DHPPi + L4R", batch: "165133", productExpiry: "2027-09", note: "Зчитано з фото ветпаспорту; звірити напис у документі" }
+  ],
   events: [],
   reminders: []
 };
@@ -26,7 +30,23 @@ const reminderMeta = {
 };
 
 function loadState() {
-  try { return { ...defaultState, ...JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}") }; }
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+    const profile = { ...defaultState.profile, ...(saved.profile || {}) };
+    const passport = { ...defaultState.passport, ...(saved.passport || {}) };
+    if (!profile.birthDate) profile.birthDate = defaultState.profile.birthDate;
+    if (!passport.passportNumber) passport.passportNumber = defaultState.passport.passportNumber;
+    if (!passport.lastVisit) passport.lastVisit = defaultState.passport.lastVisit;
+    return {
+      ...structuredClone(defaultState),
+      ...saved,
+      profile,
+      passport,
+      vaccinations: Array.isArray(saved.vaccinations) ? saved.vaccinations : structuredClone(defaultState.vaccinations),
+      events: Array.isArray(saved.events) ? saved.events : [],
+      reminders: Array.isArray(saved.reminders) ? saved.reminders : []
+    };
+  }
   catch { return structuredClone(defaultState); }
 }
 function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
@@ -49,7 +69,16 @@ function render() {
   $("#profileName").textContent = profile.name || "Луна";
   $("#agePill").textContent = calculateAge(profile.birthDate);
   $("#profileMeta").textContent = `${profile.breed || "Порода не додана"} · ${profile.birthDate ? `нар. ${formatDate(profile.birthDate, { day: "numeric", month: "long", year: "numeric" })}` : "дата народження не додана"}`;
-  renderReminders(); renderTodayEvents(); renderInsights(); renderAllEvents();
+  renderReminders(); renderTodayEvents(); renderInsights(); renderAllEvents(); renderVaccinations();
+}
+
+function renderVaccinations() {
+  const host = $("#vaccineRecords"); if (!host) return;
+  if (!state.vaccinations.length) {
+    host.innerHTML = `<div class="timeline-empty">Записів про вакцинацію поки немає.</div>`;
+    return;
+  }
+  host.innerHTML = [...state.vaccinations].sort((a, b) => b.date.localeCompare(a.date)).map((item) => `<article class="vaccine-record"><div class="vaccine-record-head"><strong>${escapeHtml(item.name)}</strong><span>${formatDate(item.date, { day: "numeric", month: "short", year: "numeric" })}</span></div><p>Дійсна до: <b>${formatDate(item.validUntil, { day: "numeric", month: "short", year: "numeric" })}</b> · серія ${escapeHtml(item.batch)}</p><small>Придатна до: ${escapeHtml(item.productExpiry)} · ${escapeHtml(item.note || "")}</small></article>`).join("");
 }
 
 function renderReminders() {
@@ -87,7 +116,7 @@ function renderAllEvents() {
 function bindDeleteEvents() { $$('[data-delete-event]').forEach((button) => button.addEventListener("click", () => { state.events = state.events.filter((event) => event.id !== button.dataset.deleteEvent); saveState(); render(); toast("Запис видалено"); })); }
 function renderInsights() {
   const todayEvents = state.events.filter((event) => event.createdAt.slice(0, 10) === todayKey());
-  $("#eventCount").textContent = todayEvents.length; $("#vaccineCount").textContent = state.reminders.filter((item) => item.type === "vaccine").length;
+  $("#eventCount").textContent = todayEvents.length; $("#vaccineCount").textContent = state.vaccinations.length;
   const next = state.reminders.filter((item) => item.date >= todayKey()).sort((a, b) => a.date.localeCompare(b.date))[0];
   $("#nextDays").textContent = next ? `${Math.max(0, Math.ceil((new Date(`${next.date}T12:00:00`) - new Date(`${todayKey()}T12:00:00`)) / 86400000))} дн.` : "—";
 }
