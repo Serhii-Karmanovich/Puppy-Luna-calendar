@@ -6,3 +6,6 @@
 .vaccine-record small{font-size:11px;color:#6f827d}
 .section-actions{display:flex;align-items:center;gap:12px}.compact-button{padding:9px 12px;font-size:12px}
 .avatar{overflow:hidden}.avatar img{width:100%;height:100%;display:block;object-fit:cover}
+.hero-avatar{width:166px;height:166px;border-radius:50%;overflow:visible;flex:0 0 auto;z-index:1;margin-right:34px;background:#d5e9df;box-shadow:0 14px 28px rgba(25,52,47,.12);border:8px solid rgba(255,255,255,.55);position:relative}
+.hero-avatar img{width:100%;height:100%;display:block;object-fit:cover;border-radius:50%}
+@media(max-width:760px){.hero-avatar{width:104px;height:104px;margin-right:-2px;align-self:end;margin-bottom:5px;border-width:5px}}
