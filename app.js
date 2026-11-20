@@ -35,6 +35,12 @@ const defaultState = {
 let state = loadState();
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
+const PUBLIC_APP_URL = "https://serhii-karmanovich.github.io/Puppy-Luna-calendar/";
+
+function authRedirectUrl() {
+  if (["localhost", "127.0.0.1", "::1"].includes(window.location.hostname)) return PUBLIC_APP_URL;
+  return `${window.location.origin}${window.location.pathname}`;
+}
 
 const eventMeta = {
   pee: { label: "Попісяла", icon: "💧" },
@@ -322,7 +328,7 @@ $("#syncButton").addEventListener("click", () => { openModal("authModal"); rende
 $("#authForm").addEventListener("submit", async (event) => {
   event.preventDefault(); if (!cloudClient) return cloudStatus("Спочатку додайте налаштування Supabase у supabase-config.js.");
   const form = Object.fromEntries(new FormData(event.target)); const action = event.submitter?.dataset.authAction || "signIn";
-  const redirectTo = `${window.location.origin}${window.location.pathname}`;
+  const redirectTo = authRedirectUrl();
   let result;
   try {
     result = action === "signUp"
@@ -339,7 +345,7 @@ $("#resendConfirmationButton").addEventListener("click", async () => {
   if (!cloudClient) return cloudStatus("Спочатку додайте налаштування Supabase у supabase-config.js.");
   const email = $("#authForm").elements.email.value.trim();
   if (!email) return cloudStatus("Спочатку введіть email.");
-  const redirectTo = `${window.location.origin}${window.location.pathname}`;
+  const redirectTo = authRedirectUrl();
   try {
     const { error } = await cloudClient.auth.resend({ type: "signup", email, options: { emailRedirectTo: redirectTo } });
     cloudStatus(error ? error.message : "Новий лист надіслано. Перевірте вхідні та папку «Спам».");
@@ -351,7 +357,7 @@ $("#forgotPasswordButton").addEventListener("click", async () => {
   if (!cloudClient) return cloudStatus("Спочатку додайте налаштування Supabase у supabase-config.js.");
   const email = $("#authForm").elements.email.value.trim();
   if (!email) return cloudStatus("Введіть email, для якого потрібно відновити пароль.");
-  const redirectTo = `${window.location.origin}${window.location.pathname}`;
+  const redirectTo = authRedirectUrl();
   try {
     const { error } = await cloudClient.auth.resetPasswordForEmail(email, { redirectTo });
     cloudStatus(error ? error.message : "Посилання для зміни пароля надіслано. Перевірте email і папку «Спам».");
