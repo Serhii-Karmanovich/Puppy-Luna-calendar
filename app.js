@@ -231,7 +231,10 @@ $("#syncButton").addEventListener("click", () => { openModal("authModal"); rende
 $("#authForm").addEventListener("submit", async (event) => {
   event.preventDefault(); if (!cloudClient) return cloudStatus("Спочатку додайте налаштування Supabase у supabase-config.js.");
   const form = Object.fromEntries(new FormData(event.target)); const action = event.submitter?.dataset.authAction || "signIn";
-  const result = action === "signUp" ? await cloudClient.auth.signUp({ email: form.email, password: form.password }) : await cloudClient.auth.signInWithPassword({ email: form.email, password: form.password });
+  const redirectTo = `${window.location.origin}${window.location.pathname}`;
+  const result = action === "signUp"
+    ? await cloudClient.auth.signUp({ email: form.email, password: form.password, options: { emailRedirectTo: redirectTo } })
+    : await cloudClient.auth.signInWithPassword({ email: form.email, password: form.password });
   if (result.error) return cloudStatus(result.error.message);
   cloudStatus(action === "signUp" ? "Акаунт створено. Перевірте email, якщо Supabase попросить підтвердження." : "Вхід виконано.");
 });

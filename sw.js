@@ -1,10 +1,10 @@
-const CACHE_NAME = "luna-app-v1";
+const CACHE_NAME = "luna-app-v2";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./styles.css?v=3",
   "./vaccine.css?v=3",
-  "./app.js?v=4",
+  "./app.js?v=5",
   "./supabase-config.js?v=1",
   "./manifest.webmanifest",
   "./luna-avatar.png",
