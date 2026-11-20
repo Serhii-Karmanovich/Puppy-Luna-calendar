@@ -122,19 +122,22 @@ function renderInsights() {
 }
 
 function addEvent(type) { state.events.push({ id: crypto.randomUUID(), type, createdAt: new Date().toISOString(), note: "" }); saveState(); render(); toast(`${eventMeta[type].label} — записано`); }
+function localIso(date, time) { const value = new Date(`${date}T${time}:00`); return Number.isNaN(value.getTime()) ? null : value.toISOString(); }
+function currentTimeValue() { const now = new Date(); return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`; }
 function toast(message) { const node = $("#toast"); node.textContent = message; node.classList.add("show"); setTimeout(() => node.classList.remove("show"), 2200); }
 function openModal(id) { const node = document.getElementById(id); if (node) node.hidden = false; }
 function closeModal(node) { node.hidden = true; }
 function fillForm(form, data) { Object.entries(data).forEach(([key, value]) => { if (form.elements[key]) form.elements[key].value = value || ""; }); }
 
 $$('[data-event]').forEach((button) => button.addEventListener("click", () => addEvent(button.dataset.event)));
-$$('[data-open]').forEach((button) => button.addEventListener("click", () => { openModal(button.dataset.open); if (button.dataset.open === "profileModal") fillForm($("#profileForm"), state.profile); if (button.dataset.open === "passportModal") fillForm($("#passportForm"), state.passport); }));
+$$('[data-open]').forEach((button) => button.addEventListener("click", () => { openModal(button.dataset.open); if (button.dataset.open === "profileModal") fillForm($("#profileForm"), state.profile); if (button.dataset.open === "passportModal") fillForm($("#passportForm"), state.passport); if (button.dataset.open === "eventModal") { $("#eventForm").reset(); $("#eventForm").elements.date.value = todayKey(); $("#eventForm").elements.time.value = currentTimeValue(); } }));
 $$('[data-close]').forEach((button) => button.addEventListener("click", () => closeModal(button.closest(".modal-backdrop"))));
 $$('.modal-backdrop').forEach((backdrop) => backdrop.addEventListener("click", (event) => { if (event.target === backdrop) closeModal(backdrop); }));
 
 $("#profileForm").addEventListener("submit", (event) => { event.preventDefault(); state.profile = Object.fromEntries(new FormData(event.target)); saveState(); render(); closeModal($("#profileModal")); toast("Профіль Луни збережено"); });
 $("#passportForm").addEventListener("submit", (event) => { event.preventDefault(); state.passport = Object.fromEntries(new FormData(event.target)); saveState(); closeModal($("#passportModal")); toast("Дані ветпаспорту збережено"); });
 $("#reminderForm").addEventListener("submit", (event) => { event.preventDefault(); const form = Object.fromEntries(new FormData(event.target)); state.reminders.push({ ...form, id: crypto.randomUUID() }); saveState(); event.target.reset(); closeModal($("#reminderModal")); render(); toast("Нагадування додано"); });
+$("#eventForm").addEventListener("submit", (event) => { event.preventDefault(); const form = Object.fromEntries(new FormData(event.target)); const createdAt = localIso(form.date, form.time); if (!createdAt) return toast("Перевірте дату і час"); state.events.push({ id: crypto.randomUUID(), type: form.type, createdAt, note: form.note || "" }); saveState(); event.target.reset(); closeModal($("#eventModal")); render(); toast(`${eventMeta[form.type].label} — записано`); });
 $("#historyFilter").addEventListener("change", renderAllEvents);
 $("#clearEvents").addEventListener("click", () => { if (confirm("Очистити події лише за сьогодні?")) { state.events = state.events.filter((event) => event.createdAt.slice(0, 10) !== todayKey()); saveState(); render(); toast("Події за сьогодні очищено"); } });
 $("#exportButton").addEventListener("click", () => { const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" }); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `luna-vetpassport-${todayKey()}.json`; link.click(); URL.revokeObjectURL(link.href); toast("Резервну копію завантажено"); });
