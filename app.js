@@ -1,11 +1,20 @@
 const STORAGE_KEY = "luna-puppy-passport-v1";
+const CLOUD_STORAGE_KEY = "luna-household-id";
+const cloudConfig = window.LUNA_SUPABASE_CONFIG || {};
+let cloudClient = null;
+let cloudSession = null;
+let cloudHouseholdId = localStorage.getItem(CLOUD_STORAGE_KEY) || "";
+let cloudChannel = null;
+let cloudApplying = false;
+let cloudSaveTimer = null;
 
 const defaultState = {
   profile: { name: "Луна", breed: "Французький бульдог", birthDate: "2026-06-03", sex: "female", color: "", chip: "", notes: "Вид: собака. Дані перенесено з фото ветеринарного паспорту." },
-  passport: { passportNumber: "UA 145168", vet: "", vetPhone: "", lastVisit: "2025-09-02", medicalNotes: "На наданих фото мікрочип не зазначений. Перевірте дані з оригіналом паспорту перед важливим візитом або поїздкою." },
+  passport: { passportNumber: "UA 145168", vet: "", vetPhone: "", lastVisit: "2026-09-02", medicalNotes: "На наданих фото мікрочип не зазначений. Перевірте дані з оригіналом паспорту перед важливим візитом або поїздкою." },
   vaccinations: [
-    { id: "vax-2025-06-11", date: "2025-06-11", validUntil: "2026-06-11", name: "Biocan DHPPi/L4", batch: "076032", productExpiry: "2027-07", note: "Зчитано з фото ветпаспорту" },
-    { id: "vax-2025-09-02", date: "2025-09-02", validUntil: "2026-09-02", name: "Biocan DHPPi + L4R", batch: "165133", productExpiry: "2027-09", note: "Зчитано з фото ветпаспорту; звірити напис у документі" }
+    { id: "vax-2026-09-02-rabies", date: "2026-09-02", validUntil: "2027-09-02", name: "Biocan R (сказ)", batch: "165133", productExpiry: "2027-09", note: "Перша вакцинація зі сторінки щеплень від сказу" },
+    { id: "vax-2026-06-11", date: "2026-06-11", validUntil: "2027-06-11", name: "Biocan DHPPi/L4", batch: "076032", productExpiry: "2027-07", note: "Друга вакцинація; зчитано з фото ветпаспорту" },
+    { id: "vax-2026-09-02", date: "2026-09-02", validUntil: "2027-09-02", name: "Biocan DHPPi + L4R", batch: "165133", productExpiry: "2027-09", note: "Третя вакцинація; зчитано з фото ветпаспорту" }
   ],
   events: [],
   reminders: []
@@ -36,7 +45,7 @@ function loadState() {
     const passport = { ...defaultState.passport, ...(saved.passport || {}) };
     if (!profile.birthDate || profile.birthDate === "2025-06-21") profile.birthDate = defaultState.profile.birthDate;
     if (!passport.passportNumber) passport.passportNumber = defaultState.passport.passportNumber;
-    if (!passport.lastVisit) passport.lastVisit = defaultState.passport.lastVisit;
+    if (!passport.lastVisit || passport.lastVisit === "2025-09-02") passport.lastVisit = defaultState.passport.lastVisit;
     return {
       ...structuredClone(defaultState),
       ...saved,
@@ -49,7 +58,13 @@ function loadState() {
   }
   catch { return structuredClone(defaultState); }
 }
-function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+function saveState() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  if (!cloudApplying) {
+    clearTimeout(cloudSaveTimer);
+    cloudSaveTimer = setTimeout(() => saveCloudState(), 350);
+  }
+}
 function todayKey() { return new Date().toISOString().slice(0, 10); }
 function formatDate(date, options = { day: "numeric", month: "long" }) { return new Intl.DateTimeFormat("uk-UA", options).format(new Date(`${date}T12:00:00`)); }
 function formatTime(dateTime) { return new Intl.DateTimeFormat("uk-UA", { hour: "2-digit", minute: "2-digit" }).format(new Date(dateTime)); }
@@ -129,6 +144,64 @@ function openModal(id) { const node = document.getElementById(id); if (node) nod
 function closeModal(node) { node.hidden = true; }
 function fillForm(form, data) { Object.entries(data).forEach(([key, value]) => { if (form.elements[key]) form.elements[key].value = value || ""; }); }
 
+function cloudConfigured() { return Boolean(cloudConfig.url && cloudConfig.anonKey && window.supabase?.createClient); }
+function cloudStatus(message) { const node = $("#cloudStatus"); if (node) node.textContent = message; }
+function renderCloudUi() {
+  const button = $("#syncButton"); const form = $("#authForm"); const actions = $("#familyActions"); const info = $("#familyInfo");
+  if (!cloudConfigured()) {
+    button.textContent = "Підключити"; form.hidden = true; actions.hidden = true;
+    cloudStatus("Потрібно додати Project URL і anon key у supabase-config.js."); return;
+  }
+  if (!cloudSession) {
+    button.textContent = "Увійти"; form.hidden = false; actions.hidden = true;
+    cloudStatus("Увійдіть, щоб бачити спільні записи на всіх пристроях."); return;
+  }
+  button.textContent = cloudHouseholdId ? "Сім’я" : "Налаштувати"; form.hidden = true; actions.hidden = false;
+  info.textContent = cloudHouseholdId ? "Синхронізація активна. Код сім’ї можна передати іншим користувачам." : "Створіть сім’ю або приєднайтеся за кодом запрошення.";
+  cloudStatus(cloudHouseholdId ? "Дані Луни синхронізуються через Supabase." : "Акаунт підключено.");
+}
+function normalizeCloudState(saved = {}) {
+  const profile = { ...defaultState.profile, ...(saved.profile || {}) };
+  const passport = { ...defaultState.passport, ...(saved.passport || {}) };
+  return { ...structuredClone(defaultState), ...saved, profile, passport, vaccinations: Array.isArray(saved.vaccinations) ? saved.vaccinations : structuredClone(defaultState.vaccinations), events: Array.isArray(saved.events) ? saved.events : [], reminders: Array.isArray(saved.reminders) ? saved.reminders : [] };
+}
+async function saveCloudState() {
+  if (!cloudClient || !cloudSession || !cloudHouseholdId || cloudApplying) return;
+  const { error } = await cloudClient.from("luna_state").upsert({ household_id: cloudHouseholdId, data: state, updated_at: new Date().toISOString(), updated_by: cloudSession.user.id });
+  if (error) cloudStatus(`Не вдалося синхронізувати: ${error.message}`); else cloudStatus("Дані Луни синхронізовано.");
+}
+async function subscribeCloud() {
+  if (cloudChannel) await cloudClient.removeChannel(cloudChannel);
+  cloudChannel = cloudClient.channel(`luna-state-${cloudHouseholdId}`).on("postgres_changes", { event: "*", schema: "public", table: "luna_state", filter: `household_id=eq.${cloudHouseholdId}` }, (payload) => {
+    if (!payload.new?.data) return;
+    cloudApplying = true; state = normalizeCloudState(payload.new.data); localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); render(); cloudApplying = false;
+    cloudStatus("Отримано оновлення від іншого користувача.");
+  }).subscribe();
+}
+async function connectHousehold(householdId) {
+  cloudHouseholdId = householdId || "";
+  if (cloudHouseholdId) localStorage.setItem(CLOUD_STORAGE_KEY, cloudHouseholdId);
+  const { data: row, error } = await cloudClient.from("luna_state").select("data").eq("household_id", cloudHouseholdId).maybeSingle();
+  if (error) return cloudStatus(`Помилка завантаження: ${error.message}`);
+  if (row?.data && Object.keys(row.data).length) { cloudApplying = true; state = normalizeCloudState(row.data); localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); render(); cloudApplying = false; }
+  else await saveCloudState();
+  await subscribeCloud(); renderCloudUi();
+}
+async function findHousehold() {
+  if (!cloudSession) return;
+  const { data, error } = await cloudClient.from("household_members").select("household_id").eq("user_id", cloudSession.user.id).maybeSingle();
+  if (error) return cloudStatus(`Помилка доступу до сім’ї: ${error.message}`);
+  if (data?.household_id) await connectHousehold(data.household_id); else { cloudHouseholdId = ""; renderCloudUi(); }
+}
+async function initCloud() {
+  renderCloudUi();
+  if (!cloudConfigured()) return;
+  cloudClient = window.supabase.createClient(cloudConfig.url, cloudConfig.anonKey);
+  const { data } = await cloudClient.auth.getSession(); cloudSession = data.session; renderCloudUi();
+  if (cloudSession) await findHousehold();
+  cloudClient.auth.onAuthStateChange((_event, session) => { cloudSession = session; setTimeout(() => session ? findHousehold() : renderCloudUi(), 0); });
+}
+
 $$('[data-event]').forEach((button) => button.addEventListener("click", () => addEvent(button.dataset.event)));
 $$('[data-open]').forEach((button) => button.addEventListener("click", () => { openModal(button.dataset.open); if (button.dataset.open === "profileModal") fillForm($("#profileForm"), state.profile); if (button.dataset.open === "passportModal") fillForm($("#passportForm"), state.passport); if (button.dataset.open === "eventModal") { $("#eventForm").reset(); $("#eventForm").elements.date.value = todayKey(); $("#eventForm").elements.time.value = currentTimeValue(); } }));
 $$('[data-close]').forEach((button) => button.addEventListener("click", () => closeModal(button.closest(".modal-backdrop"))));
@@ -143,4 +216,16 @@ $("#clearEvents").addEventListener("click", () => { if (confirm("Очистит�
 $("#exportButton").addEventListener("click", () => { const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" }); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `luna-vetpassport-${todayKey()}.json`; link.click(); URL.revokeObjectURL(link.href); toast("Резервну копію завантажено"); });
 $("#notifyButton").addEventListener("click", async () => { if (!("Notification" in window)) return toast("Цей браузер не підтримує сповіщення"); const permission = await Notification.requestPermission(); toast(permission === "granted" ? "Нагадування дозволено" : "Дозвіл не надано"); });
 
-render();
+$("#syncButton").addEventListener("click", () => { openModal("authModal"); renderCloudUi(); });
+$("#authForm").addEventListener("submit", async (event) => {
+  event.preventDefault(); if (!cloudClient) return cloudStatus("Спочатку додайте налаштування Supabase у supabase-config.js.");
+  const form = Object.fromEntries(new FormData(event.target)); const action = event.submitter?.dataset.authAction || "signIn";
+  const result = action === "signUp" ? await cloudClient.auth.signUp({ email: form.email, password: form.password }) : await cloudClient.auth.signInWithPassword({ email: form.email, password: form.password });
+  if (result.error) return cloudStatus(result.error.message);
+  cloudStatus(action === "signUp" ? "Акаунт створено. Перевірте email, якщо Supabase попросить підтвердження." : "Вхід виконано.");
+});
+$("#createFamilyButton").addEventListener("click", async () => { const { data, error } = await cloudClient.rpc("create_luna_household"); if (error) return cloudStatus(error.message); await connectHousehold(data?.[0]?.household_id); cloudStatus(`Сім’ю створено. Код запрошення: ${data?.[0]?.invite_code || ""}`); });
+$("#joinFamilyButton").addEventListener("click", async () => { const code = $("#inviteCodeInput").value.trim(); if (!code) return cloudStatus("Введіть код запрошення."); const { data, error } = await cloudClient.rpc("join_luna_household", { code }); if (error) return cloudStatus(error.message); await connectHousehold(data?.[0]?.household_id); cloudStatus("Ви приєдналися до сім’ї Луни."); });
+$("#signOutButton").addEventListener("click", async () => { if (cloudChannel) await cloudClient.removeChannel(cloudChannel); await cloudClient.auth.signOut(); cloudSession = null; cloudHouseholdId = ""; localStorage.removeItem(CLOUD_STORAGE_KEY); renderCloudUi(); });
+
+render(); initCloud();
