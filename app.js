@@ -21,7 +21,9 @@ const defaultState = {
     { id: "event-2026-11-20-0740-food", type: "food", createdAt: "2026-11-20T05:40:00.000Z", note: "07:40–07:50" },
     { id: "event-2026-11-20-1110-walk", type: "walk", createdAt: "2026-11-20T09:10:00.000Z", note: "11:10–11:40; на вулиці; попісяла" },
     { id: "event-2026-11-20-1230-pee", type: "pee", createdAt: "2026-11-20T10:30:00.000Z", note: "Вдома, на пеленку" },
-    { id: "event-2026-11-20-1235-food", type: "food", createdAt: "2026-11-20T10:35:00.000Z", note: "Другий прийом їжі" }
+    { id: "event-2026-11-20-1235-food", type: "food", createdAt: "2026-11-20T10:35:00.000Z", note: "Другий прийом їжі" },
+    { id: "event-2026-11-20-1400-food", type: "food", createdAt: "2026-11-20T12:00:00.000Z", note: "Половинка від попереднього прийому" },
+    { id: "event-2026-11-20-1415-walk", type: "walk", createdAt: "2026-11-20T12:15:00.000Z", note: "14:15–14:40; на вулиці; лише попісяла" }
   ],
   reminders: []
 };
