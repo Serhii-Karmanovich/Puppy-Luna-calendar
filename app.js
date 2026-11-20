@@ -79,11 +79,14 @@ function formatTime(dateTime) { return new Intl.DateTimeFormat("uk-UA", { hour: 
 function escapeHtml(value = "") { return value.replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[char])); }
 
 function calculateAge(date) {
-  if (!date) return "5,5 місяців";
+  if (!date) return "—";
   const birth = new Date(`${date}T12:00:00`); const now = new Date();
-  let months = (now.getFullYear() - birth.getFullYear()) * 12 + now.getMonth() - birth.getMonth();
-  if (now.getDate() < birth.getDate()) months -= 1;
-  return months < 12 ? `${Math.max(months, 0)} міс.` : `${Math.floor(months / 12)} р. ${months % 12} міс.`;
+  let years = now.getFullYear() - birth.getFullYear();
+  let months = now.getMonth() - birth.getMonth();
+  let days = now.getDate() - birth.getDate();
+  if (days < 0) { months -= 1; days += new Date(now.getFullYear(), now.getMonth(), 0).getDate(); }
+  if (months < 0) { years -= 1; months += 12; }
+  return `${Math.max(years, 0)} р. ${Math.max(months, 0)} міс. ${Math.max(days, 0)} дн.`;
 }
 
 function render() {
