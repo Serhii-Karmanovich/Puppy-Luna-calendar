@@ -16,7 +16,13 @@ const defaultState = {
     { id: "vax-2026-06-11", date: "2026-06-11", validUntil: "2027-06-11", name: "Biocan DHPPi/L4", batch: "076032", productExpiry: "2027-07", note: "Друга вакцинація; зчитано з фото ветпаспорту" },
     { id: "vax-2026-09-02", date: "2026-09-02", validUntil: "2027-09-02", name: "Biocan DHPPi + L4R", batch: "165133", productExpiry: "2027-09", note: "Третя вакцинація; зчитано з фото ветпаспорту" }
   ],
-  events: [],
+  events: [
+    { id: "event-2026-11-20-0700-walk", type: "walk", createdAt: "2026-11-20T05:00:00.000Z", note: "07:00–07:30; на вулиці; попісяла і покакала" },
+    { id: "event-2026-11-20-0740-food", type: "food", createdAt: "2026-11-20T05:40:00.000Z", note: "07:40–07:50" },
+    { id: "event-2026-11-20-1110-walk", type: "walk", createdAt: "2026-11-20T09:10:00.000Z", note: "11:10–11:40; на вулиці; попісяла" },
+    { id: "event-2026-11-20-1230-pee", type: "pee", createdAt: "2026-11-20T10:30:00.000Z", note: "Вдома, на пеленку" },
+    { id: "event-2026-11-20-1235-food", type: "food", createdAt: "2026-11-20T10:35:00.000Z", note: "Другий прийом їжі" }
+  ],
   reminders: []
 };
 
@@ -52,7 +58,7 @@ function loadState() {
       profile,
       passport,
       vaccinations: Array.isArray(saved.vaccinations) ? saved.vaccinations : structuredClone(defaultState.vaccinations),
-      events: Array.isArray(saved.events) ? saved.events : [],
+      events: Array.isArray(saved.events) && saved.events.length ? saved.events : structuredClone(defaultState.events),
       reminders: Array.isArray(saved.reminders) ? saved.reminders : []
     };
   }
