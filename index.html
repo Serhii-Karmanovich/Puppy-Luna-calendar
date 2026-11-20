@@ -1,16 +1,14 @@
-<!doctype html>
-<html lang="uk">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#16352f" />
-    <meta name="description" content="Онлайн-ветпаспорт і щоденник догляду за Луною." />
+<html lang="uk"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#16352f">
+    <meta name="description" content="Онлайн-ветпаспорт і щоденник догляду за Луною.">
     <title>Луна — ветпаспорт</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="./styles.css" />
-    <link rel="stylesheet" href="./vaccine.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Playfair+Display:wght@600;700&amp;display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./styles.css">
+    <link rel="stylesheet" href="./vaccine.css">
   </head>
   <body>
     <div class="app-shell">
@@ -25,18 +23,18 @@
       <main>
         <section class="hero" id="today">
           <div>
-            <p class="eyebrow">СЬОГОДНІ · <span id="todayDate"></span></p>
-            <h1>Доброго дня,<br /><em>Луно.</em></h1>
+            <p class="eyebrow">СЬОГОДНІ · <span id="todayDate">20 листопада</span></p>
+            <h1>Доброго дня,<br><em>Луно.</em></h1>
             <p class="hero-copy">Усе важливе про здоров’я, ритм і маленькі перемоги — в одному місці.</p>
           </div>
-          <div class="hero-paw" aria-hidden="true">🐶</div>
+          <div class="hero-avatar" aria-hidden="true"><img src="./luna-avatar.svg" alt=""><span class="hero-emoji">🐶</span></div>
         </section>
 
         <section class="profile-strip panel">
-          <div class="avatar"><img src="./luna-avatar.svg" alt="Луна" /></div>
+          <div class="avatar"><img src="./luna-avatar.svg" alt="Луна"></div>
           <div class="profile-summary">
-            <div class="profile-title-row"><h2 id="profileName">Луна</h2><span class="pill pill-green" id="agePill">5,5 місяців</span></div>
-            <p id="profileMeta">Французький бульдог · дата народження не додана</p>
+            <div class="profile-title-row"><h2 id="profileName">Луна</h2><span class="pill pill-green" id="agePill">1 р. 4 міс.</span></div>
+            <p id="profileMeta">Французький бульдог · нар. 21 червня 2025 р.</p>
           </div>
           <button class="text-button" data-open="profileModal" type="button">Редагувати <span>↗</span></button>
         </section>
@@ -49,17 +47,17 @@
         </section>
 
         <section class="section-head"><div><p class="eyebrow">ПЛАН НАЙБЛИЖЧИМ ЧАСОМ</p><h2>Нагадування</h2></div><button class="round-add" data-open="reminderModal" type="button" aria-label="Додати нагадування">+</button></section>
-        <section class="reminder-list" id="upcomingReminders"></section>
+        <section class="reminder-list" id="upcomingReminders"><div class="reminder-card"><div class="reminder-icon">✨</div><div><h3>Поки немає нагадувань</h3><p>Додайте наступну вакцинацію або візит до ветеринара.</p></div></div></section>
 
         <section class="section-head history-head"><div><p class="eyebrow">ЩОДЕННИЙ РИТМ</p><h2>Події сьогодні</h2></div><div class="section-actions"><button class="secondary-button compact-button" data-open="eventModal" type="button">Додати запис</button><button class="text-button" id="clearEvents" type="button">Очистити <span>↗</span></button></div></section>
-        <section class="timeline" id="todayEvents"></section>
+        <section class="timeline" id="todayEvents"><div class="timeline-empty">Ще немає записів. Натисніть кнопку події вище, коли Луна поїсть, погуляє або сходить у туалет.</div></section>
 
         <section class="insights panel">
           <div class="section-head compact"><div><p class="eyebrow">КОНТРОЛЬ</p><h2>Статус турботи</h2></div><span class="status-dot"><i></i> усе під контролем</span></div>
           <div class="insight-grid">
             <div><strong id="eventCount">0</strong><span>подій сьогодні</span></div>
             <div><strong id="nextDays">—</strong><span>до наступної події</span></div>
-            <div><strong id="vaccineCount">0</strong><span>вакцинацій у паспорті</span></div>
+            <div><strong id="vaccineCount">2</strong><span>вакцинацій у паспорті</span></div>
           </div>
         </section>
       </main>
@@ -72,16 +70,17 @@
       </nav>
     </div>
 
-    <div class="modal-backdrop" id="profileModal" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="profileHeading"><button class="modal-close" data-close type="button">×</button><p class="eyebrow">ПРОФІЛЬ ЛУНИ</p><h2 id="profileHeading">Дані цуценяти</h2><form id="profileForm" class="form-grid"><label>Ім’я<input name="name" value="Луна" required /></label><label>Порода<input name="breed" value="Французький бульдог" /></label><label>Дата народження<input name="birthDate" type="date" /></label><label>Стать<select name="sex"><option value="female">Дівчинка</option><option value="male">Хлопчик</option></select></label><label>Колір / особливі прикмети<input name="color" placeholder="наприклад, fawn" /></label><label>Номер мікрочипа<input name="chip" placeholder="ще не додано" /></label><label class="full">Нотатки<textarea name="notes" rows="3" placeholder="Алергії, особливості, контакти..." ></textarea></label><button class="primary-button full" type="submit">Зберегти профіль</button></form></div></div>
+    <div class="modal-backdrop" id="profileModal" hidden=""><div class="modal" role="dialog" aria-modal="true" aria-labelledby="profileHeading"><button class="modal-close" data-close="" type="button">×</button><p class="eyebrow">ПРОФІЛЬ ЛУНИ</p><h2 id="profileHeading">Дані цуценяти</h2><form id="profileForm" class="form-grid"><label>Ім’я<input name="name" value="Луна" required=""></label><label>Порода<input name="breed" value="Французький бульдог"></label><label>Дата народження<input name="birthDate" type="date"></label><label>Стать<select name="sex"><option value="female">Дівчинка</option><option value="male">Хлопчик</option></select></label><label>Колір / особливі прикмети<input name="color" placeholder="наприклад, fawn"></label><label>Номер мікрочипа<input name="chip" placeholder="ще не додано"></label><label class="full">Нотатки<textarea name="notes" rows="3" placeholder="Алергії, особливості, контакти..."></textarea></label><button class="primary-button full" type="submit">Зберегти профіль</button></form></div></div>
 
-    <div class="modal-backdrop" id="passportModal" hidden><div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="passportHeading"><button class="modal-close" data-close type="button">×</button><p class="eyebrow">ВЕТЕРИНАРНИЙ ПАСПОРТ</p><h2 id="passportHeading">Дані паспорту</h2><form id="passportForm" class="form-grid"><label>Номер ветпаспорту<input name="passportNumber" placeholder="номер документа" /></label><label>Клініка / ветеринар<input name="vet" placeholder="назва або лікар" /></label><label>Телефон клініки<input name="vetPhone" type="tel" placeholder="+380..." /></label><label>Дата останнього огляду<input name="lastVisit" type="date" /></label><label class="full">Медичні примітки<textarea name="medicalNotes" rows="3" placeholder="Важлива інформація для ветеринара..."></textarea></label><button class="primary-button full" type="submit">Зберегти дані паспорту</button></form><div class="passport-actions"><h3>Історія вакцинацій</h3><div id="vaccineRecords"></div><button class="secondary-button" data-open="reminderModal" type="button">Додати нагадування про вакцинацію</button></div></div></div>
+    <div class="modal-backdrop" id="passportModal" hidden=""><div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="passportHeading"><button class="modal-close" data-close="" type="button">×</button><p class="eyebrow">ВЕТЕРИНАРНИЙ ПАСПОРТ</p><h2 id="passportHeading">Дані паспорту</h2><form id="passportForm" class="form-grid"><label>Номер ветпаспорту<input name="passportNumber" placeholder="номер документа"></label><label>Клініка / ветеринар<input name="vet" placeholder="назва або лікар"></label><label>Телефон клініки<input name="vetPhone" type="tel" placeholder="+380..."></label><label>Дата останнього огляду<input name="lastVisit" type="date"></label><label class="full">Медичні примітки<textarea name="medicalNotes" rows="3" placeholder="Важлива інформація для ветеринара..."></textarea></label><button class="primary-button full" type="submit">Зберегти дані паспорту</button></form><div class="passport-actions"><h3>Історія вакцинацій</h3><div id="vaccineRecords"><article class="vaccine-record"><div class="vaccine-record-head"><strong>Biocan DHPPi + L4R</strong><span>2 вер. 2025 р.</span></div><p>Дійсна до: <b>2 вер. 2026 р.</b> · серія 165133</p><small>Придатна до: 2027-09 · Зчитано з фото ветпаспорту; звірити напис у документі</small></article><article class="vaccine-record"><div class="vaccine-record-head"><strong>Biocan DHPPi/L4</strong><span>11 черв. 2025 р.</span></div><p>Дійсна до: <b>11 черв. 2026 р.</b> · серія 076032</p><small>Придатна до: 2027-07 · Зчитано з фото ветпаспорту</small></article></div><button class="secondary-button" data-open="reminderModal" type="button">Додати нагадування про вакцинацію</button></div></div></div>
 
-    <div class="modal-backdrop" id="reminderModal" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="reminderHeading"><button class="modal-close" data-close type="button">×</button><p class="eyebrow">КАЛЕНДАР ТУРБОТИ</p><h2 id="reminderHeading">Нове нагадування</h2><form id="reminderForm" class="form-grid"><label>Подія<select name="type"><option value="vaccine">💉 Вакцинація</option><option value="vet">🩺 Візит до ветеринара</option><option value="parasites">🦟 Паразити</option><option value="grooming">✂️ Догляд / кігті</option><option value="custom">📌 Інше</option></select></label><label>Дата<input name="date" type="date" required /></label><label class="full">Назва або примітка<input name="title" placeholder="наприклад, повторна вакцинація" required /></label><label>Повторювати<select name="repeat"><option value="none">Не повторювати</option><option value="30">Щомісяця</option><option value="90">Кожні 3 місяці</option><option value="365">Щороку</option></select></label><button class="primary-button full" type="submit">Додати нагадування</button></form></div></div>
-    <div class="modal-backdrop" id="eventModal" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="eventHeading"><button class="modal-close" data-close type="button">×</button><p class="eyebrow">ЩОДЕННИЙ РИТМ</p><h2 id="eventHeading">Додати запис</h2><form id="eventForm" class="form-grid"><label>Подія<select name="type"><option value="pee">💧 Попісяла</option><option value="poop">◒ Покакала</option><option value="walk">🐾 Вигул</option><option value="food">🍽️ Годування</option></select></label><label>Дата<input name="date" type="date" required /></label><label>Час<input name="time" type="time" required /></label><label class="full">Примітка<input name="note" placeholder="наприклад, 07:00–07:30; на вулиці" /></label><button class="primary-button full" type="submit">Зберегти запис</button></form></div></div>
+    <div class="modal-backdrop" id="reminderModal" hidden=""><div class="modal" role="dialog" aria-modal="true" aria-labelledby="reminderHeading"><button class="modal-close" data-close="" type="button">×</button><p class="eyebrow">КАЛЕНДАР ТУРБОТИ</p><h2 id="reminderHeading">Нове нагадування</h2><form id="reminderForm" class="form-grid"><label>Подія<select name="type"><option value="vaccine">💉 Вакцинація</option><option value="vet">🩺 Візит до ветеринара</option><option value="parasites">🦟 Паразити</option><option value="grooming">✂️ Догляд / кігті</option><option value="custom">📌 Інше</option></select></label><label>Дата<input name="date" type="date" required=""></label><label class="full">Назва або примітка<input name="title" placeholder="наприклад, повторна вакцинація" required=""></label><label>Повторювати<select name="repeat"><option value="none">Не повторювати</option><option value="30">Щомісяця</option><option value="90">Кожні 3 місяці</option><option value="365">Щороку</option></select></label><button class="primary-button full" type="submit">Додати нагадування</button></form></div></div>
+    <div class="modal-backdrop" id="eventModal" hidden=""><div class="modal" role="dialog" aria-modal="true" aria-labelledby="eventHeading"><button class="modal-close" data-close="" type="button">×</button><p class="eyebrow">ЩОДЕННИЙ РИТМ</p><h2 id="eventHeading">Додати запис</h2><form id="eventForm" class="form-grid"><label>Подія<select name="type"><option value="pee">💧 Попісяла</option><option value="poop">◒ Покакала</option><option value="walk">🐾 Вигул</option><option value="food">🍽️ Годування</option></select></label><label>Дата<input name="date" type="date" required=""></label><label>Час<input name="time" type="time" required=""></label><label class="full">Примітка<input name="note" placeholder="наприклад, 07:00–07:30; на вулиці"></label><button class="primary-button full" type="submit">Зберегти запис</button></form></div></div>
 
-    <div class="modal-backdrop" id="historyModal" hidden><div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="historyHeading"><button class="modal-close" data-close type="button">×</button><p class="eyebrow">ІСТОРІЯ</p><h2 id="historyHeading">Усі записи</h2><div class="history-toolbar"><select id="historyFilter"><option value="all">Усі події</option><option value="pee">Попісяла</option><option value="poop">Покакала</option><option value="walk">Вигул</option><option value="food">Годування</option></select><button class="secondary-button" id="exportButton" type="button">Експорт JSON</button></div><div class="all-events" id="allEvents"></div></div></div>
+    <div class="modal-backdrop" id="historyModal" hidden=""><div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="historyHeading"><button class="modal-close" data-close="" type="button">×</button><p class="eyebrow">ІСТОРІЯ</p><h2 id="historyHeading">Усі записи</h2><div class="history-toolbar"><select id="historyFilter"><option value="all">Усі події</option><option value="pee">Попісяла</option><option value="poop">Покакала</option><option value="walk">Вигул</option><option value="food">Годування</option></select><button class="secondary-button" id="exportButton" type="button">Експорт JSON</button></div><div class="all-events" id="allEvents"><div class="timeline-empty">Записів поки немає.</div></div></div></div>
 
     <div class="toast" id="toast" role="status"></div>
     <script src="./app.js?v=2"></script>
-  </body>
-</html>
+  
+
+</body><div id="codex-browser-sidebar-comments-root" style="position: fixed; inset: 0px; pointer-events: none; z-index: 2147483647;"></div></html>
