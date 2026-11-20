@@ -45,6 +45,16 @@ const reminderMeta = {
   grooming: { label: "Догляд", icon: "✂️" },
   custom: { label: "Інше", icon: "📌" }
 };
+const dailyQuotes = [
+  { text: "«Страх Господній — початок мудрості, а пізнання Святого — розум.»", reference: "Книга Притч, 9:10" },
+  { text: "«Надійся на Господа всім своїм серцем, а на розум свій не покладайся.»", reference: "Книга Притч, 3:5" },
+  { text: "«Над усе, що лише стережеться, серце своє стережи, бо з нього походить життя.»", reference: "Книга Притч, 4:23" },
+  { text: "«Лагідна відповідь гнів відвертає, а слово болюче гнів піднімає.»", reference: "Книга Притч, 15:1" },
+  { text: "«Краще мале з правдою, ніж великі прибутки з неправдою.»", reference: "Книга Притч, 16:8" },
+  { text: "«Друг любить кожного часу, і брат народжується на час лихоліття.»", reference: "Книга Притч, 17:17" },
+  { text: "«Хто чинить милість убогому, той позичає Господеві, і Він віддасть йому за його добродійство.»", reference: "Книга Притч, 19:17" },
+  { text: "«Як залізо гострить залізо, так людина гострить свого друга.»", reference: "Книга Притч, 27:17" }
+];
 
 function loadState() {
   try {
@@ -89,9 +99,17 @@ function calculateAge(date) {
   return `${Math.max(years, 0)} р. ${Math.max(months, 0)} міс. ${Math.max(days, 0)} дн.`;
 }
 
+function renderDailyQuote() {
+  const seed = todayKey().split("-").reduce((sum, part) => sum + Number(part), 0);
+  const quote = dailyQuotes[seed % dailyQuotes.length];
+  $("#dailyQuoteText").textContent = quote.text;
+  $("#dailyQuoteReference").textContent = `— ${quote.reference}`;
+}
+
 function render() {
   const profile = state.profile;
   $("#todayDate").textContent = new Intl.DateTimeFormat("uk-UA", { day: "numeric", month: "long" }).format(new Date());
+  renderDailyQuote();
   $("#profileName").textContent = profile.name || "Луна";
   $("#agePill").textContent = calculateAge(profile.birthDate);
   $("#profileMeta").textContent = `${profile.breed || "Порода не додана"} · ${profile.birthDate ? `нар. ${formatDate(profile.birthDate, { day: "numeric", month: "long", year: "numeric" })}` : "дата народження не додана"}`;
