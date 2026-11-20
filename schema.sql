@@ -73,6 +73,45 @@ begin
 end;
 $$;
 
+create or replace function public.save_luna_state(
+  target_household uuid,
+  payload jsonb,
+  expected_updated_at timestamptz default null
+)
+returns public.luna_state
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare saved public.luna_state;
+begin
+  if auth.uid() is null or not public.is_luna_member(target_household) then
+    raise exception 'Доступ заборонено';
+  end if;
+
+  if expected_updated_at is null then
+    insert into public.luna_state (household_id, data, updated_by)
+    values (target_household, payload, auth.uid())
+    on conflict (household_id) do nothing
+    returning * into saved;
+    if saved.household_id is null then
+      raise exception 'LUNA_STATE_CONFLICT';
+    end if;
+  else
+    update public.luna_state
+    set data = payload, updated_at = now(), updated_by = auth.uid()
+    where household_id = target_household
+      and updated_at = expected_updated_at
+    returning * into saved;
+    if saved.household_id is null then
+      raise exception 'LUNA_STATE_CONFLICT';
+    end if;
+  end if;
+
+  return saved;
+end;
+$$;
+
 alter table public.households enable row level security;
 alter table public.household_members enable row level security;
 alter table public.luna_state enable row level security;
@@ -94,7 +133,20 @@ create policy "Members can update Luna state" on public.luna_state for update to
 
 grant execute on function public.create_luna_household() to authenticated;
 grant execute on function public.join_luna_household(text) to authenticated;
+revoke execute on function public.save_luna_state(uuid, jsonb, timestamptz) from public;
+grant execute on function public.save_luna_state(uuid, jsonb, timestamptz) to authenticated;
 grant select on public.households, public.household_members, public.luna_state to authenticated;
 grant insert, update on public.luna_state to authenticated;
 
-alter publication supabase_realtime add table public.luna_state;
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'luna_state'
+  ) then
+    alter publication supabase_realtime add table public.luna_state;
+  end if;
+end
+$$;
