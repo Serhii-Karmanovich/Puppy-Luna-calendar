@@ -1,0 +1,19 @@
+{
+  "name": "Луна — ветпаспорт і турбота",
+  "short_name": "Луна",
+  "description": "Спільний щоденник здоров’я, вигулів, годування та ветеринарних подій Луни.",
+  "lang": "uk",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f7fbf8",
+  "theme_color": "#16352f",
+  "icons": [
+    {
+      "src": "./luna-avatar.png",
+      "sizes": "1254x1254",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

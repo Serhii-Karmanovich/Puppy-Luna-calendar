@@ -240,3 +240,7 @@ $("#joinFamilyButton").addEventListener("click", async () => { const code = $("#
 $("#signOutButton").addEventListener("click", async () => { if (cloudChannel) await cloudClient.removeChannel(cloudChannel); await cloudClient.auth.signOut(); cloudSession = null; cloudHouseholdId = ""; localStorage.removeItem(CLOUD_STORAGE_KEY); renderCloudUi(); });
 
 render(); initCloud();
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
+}
