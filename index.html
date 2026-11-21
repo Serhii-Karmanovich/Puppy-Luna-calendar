@@ -14,7 +14,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="./styles.css?v=3" />
+    <link rel="stylesheet" href="./styles.css?v=4" />
     <link rel="stylesheet" href="./vaccine.css?v=3" />
   </head>
   <body>
@@ -47,6 +47,11 @@
             <p id="profileMeta">Французький бульдог · дата народження не додана</p>
           </div>
           <button class="text-button" data-open="profileModal" type="button">Редагувати <span>↗</span></button>
+        </section>
+
+        <section class="weight-panel panel" aria-labelledby="weightHeading">
+          <div class="weight-summary"><p class="eyebrow">ЗДОРОВ’Я</p><h2 id="weightHeading">Вага Луни</h2><strong id="weightValue">7,8 кг</strong><span id="weightDate">останнє вимірювання · 21 листопада 2026 р.</span><small id="weightChange">Перше вимірювання</small></div>
+          <button class="secondary-button" data-open="weightModal" type="button">Додати вагу</button>
         </section>
 
         <section class="quick-grid" aria-label="Швидкий запис події">
@@ -82,6 +87,8 @@
 
     <div class="modal-backdrop" id="profileModal" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="profileHeading"><button class="modal-close" data-close type="button">×</button><p class="eyebrow">ПРОФІЛЬ ЛУНИ</p><h2 id="profileHeading">Дані цуценяти</h2><form id="profileForm" class="form-grid"><label>Ім’я<input name="name" value="Луна" required /></label><label>Порода<input name="breed" value="Французький бульдог" /></label><label>Дата народження<input name="birthDate" type="date" /></label><label>Стать<select name="sex"><option value="female">Дівчинка</option><option value="male">Хлопчик</option></select></label><label>Колір / особливі прикмети<input name="color" placeholder="наприклад, fawn" /></label><label>Номер мікрочипа<input name="chip" placeholder="ще не додано" /></label><label class="full">Нотатки<textarea name="notes" rows="3" placeholder="Алергії, особливості, контакти..." ></textarea></label><button class="primary-button full" type="submit">Зберегти профіль</button></form></div></div>
 
+    <div class="modal-backdrop" id="weightModal" hidden><div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="weightModalHeading"><button class="modal-close" data-close type="button">×</button><p class="eyebrow">ЗДОРОВ’Я ЛУНИ</p><h2 id="weightModalHeading">Історія ваги</h2><form id="weightForm" class="form-grid"><label>Дата<input name="date" type="date" required /></label><label>Час<input name="time" type="time" /></label><label>Вага, кг<input name="weight" type="number" min="0.1" max="100" step="0.1" required placeholder="наприклад, 7.8" /></label><label class="full">Примітка<input name="note" placeholder="наприклад, ранкове зважування" /></label><button class="primary-button full" type="submit">Зберегти вимірювання</button></form><div class="weight-history" id="weightHistory"></div></div></div>
+
     <div class="modal-backdrop" id="passportModal" hidden><div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="passportHeading"><button class="modal-close" data-close type="button">×</button><p class="eyebrow">ВЕТЕРИНАРНИЙ ПАСПОРТ</p><h2 id="passportHeading">Дані паспорту</h2><form id="passportForm" class="form-grid"><label>Номер ветпаспорту<input name="passportNumber" placeholder="номер документа" /></label><label>Клініка / ветеринар<input name="vet" placeholder="назва або лікар" /></label><label>Телефон клініки<input name="vetPhone" type="tel" placeholder="+380..." /></label><label>Дата останнього огляду<input name="lastVisit" type="date" /></label><label class="full">Медичні примітки<textarea name="medicalNotes" rows="3" placeholder="Важлива інформація для ветеринара..."></textarea></label><button class="primary-button full" type="submit">Зберегти дані паспорту</button></form><div class="passport-actions"><h3>Історія вакцинацій</h3><div id="vaccineRecords"></div><button class="secondary-button" data-open="reminderModal" type="button">Додати нагадування про вакцинацію</button></div></div></div>
 
     <div class="modal-backdrop" id="reminderModal" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="reminderHeading"><button class="modal-close" data-close type="button">×</button><p class="eyebrow">КАЛЕНДАР ТУРБОТИ</p><h2 id="reminderHeading">Нове нагадування</h2><form id="reminderForm" class="form-grid"><label>Подія<select name="type"><option value="vaccine">💉 Вакцинація</option><option value="vet">🩺 Візит до ветеринара</option><option value="parasites">🦟 Паразити</option><option value="grooming">✂️ Догляд / кігті</option><option value="custom">📌 Інше</option></select></label><label>Дата<input name="date" type="date" required /></label><label class="full">Назва або примітка<input name="title" placeholder="наприклад, повторна вакцинація" required /></label><label>Повторювати<select name="repeat"><option value="none">Не повторювати</option><option value="30">Щомісяця</option><option value="90">Кожні 3 місяці</option><option value="365">Щороку</option></select></label><button class="primary-button full" type="submit">Додати нагадування</button></form></div></div>
@@ -95,6 +102,6 @@
     <div class="toast" id="toast" role="status"></div>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="./supabase-config.js?v=1"></script>
-    <script src="./app.js?v=6"></script>
+    <script src="./app.js?v=7"></script>
   </body>
 </html>
