@@ -13,6 +13,7 @@ let cloudSaveQueued = false;
 
 const defaultState = {
   profile: { name: "Луна", breed: "Французький бульдог", birthDate: "2026-06-03", sex: "female", color: "", chip: "", notes: "Вид: собака. Дані перенесено з фото ветеринарного паспорту." },
+  weightRecords: [{ id: "weight-2026-11-21-78", date: "2026-11-21", time: "", weight: 7.8, note: "Перше вимірювання" }],
   passport: { passportNumber: "UA 145168", vet: "", vetPhone: "", lastVisit: "2026-09-02", medicalNotes: "На наданих фото мікрочип не зазначений. Перевірте дані з оригіналом паспорту перед важливим візитом або поїздкою." },
   vaccinations: [
     { id: "vax-2026-09-02-rabies", date: "2026-09-02", validUntil: "2027-09-02", name: "Biocan R (сказ)", batch: "165133", productExpiry: "2027-09", note: "Перша вакцинація зі сторінки щеплень від сказу" },
@@ -79,6 +80,7 @@ function loadState() {
       ...saved,
       profile,
       passport,
+      weightRecords: Array.isArray(saved.weightRecords) ? saved.weightRecords : structuredClone(defaultState.weightRecords),
       vaccinations: Array.isArray(saved.vaccinations) ? saved.vaccinations : structuredClone(defaultState.vaccinations),
       deletedIds: Array.isArray(saved.deletedIds) ? saved.deletedIds : [],
       events: Array.isArray(saved.events) && saved.events.length ? saved.events : structuredClone(defaultState.events),
@@ -141,7 +143,22 @@ function render() {
   $("#profileName").textContent = profile.name || "Луна";
   $("#agePill").textContent = calculateAge(profile.birthDate);
   $("#profileMeta").textContent = `${profile.breed || "Порода не додана"} · ${profile.birthDate ? `нар. ${formatDate(profile.birthDate, { day: "numeric", month: "long", year: "numeric" })}` : "дата народження не додана"}`;
-  renderReminders(); renderTodayEvents(); renderInsights(); renderAllEvents(); renderVaccinations();
+  renderWeight(); renderReminders(); renderTodayEvents(); renderInsights(); renderAllEvents(); renderVaccinations();
+}
+
+function formatWeight(value) { return Number(value).toLocaleString("uk-UA", { minimumFractionDigits: 1, maximumFractionDigits: 2 }); }
+function weightSort(a, b) { return `${b.date}T${b.time || "00:00"}`.localeCompare(`${a.date}T${a.time || "00:00"}`); }
+function renderWeight() {
+  const records = [...(state.weightRecords || [])].filter((item) => item?.date && Number(item.weight) > 0).sort(weightSort);
+  const value = $("#weightValue"); const date = $("#weightDate"); const change = $("#weightChange"); const history = $("#weightHistory");
+  if (!value) return;
+  if (!records.length) { value.textContent = "—"; date.textContent = "вимірювання ще не додані"; change.textContent = "Додайте першу вагу"; if (history) history.innerHTML = `<div class="timeline-empty">Вимірювань поки немає.</div>`; return; }
+  const latest = records[0]; const previous = records[1]; const difference = previous ? Number(latest.weight) - Number(previous.weight) : null;
+  value.textContent = `${formatWeight(latest.weight)} кг`;
+  date.textContent = `останнє вимірювання · ${formatDate(latest.date, { day: "numeric", month: "long", year: "numeric" })}`;
+  change.textContent = difference === null ? "Перше вимірювання" : `${difference > 0 ? "+" : ""}${formatWeight(difference)} кг від попереднього`;
+  if (history) history.innerHTML = records.map((item, index) => `<article class="weight-record"><div><strong>${formatWeight(item.weight)} кг</strong><span>${formatDate(item.date, { day: "numeric", month: "long", year: "numeric" })}${item.time ? ` · ${escapeHtml(item.time)}` : ""}</span>${item.note ? `<small>${escapeHtml(item.note)}</small>` : ""}</div><button class="delete-event" data-delete-weight="${item.id}" type="button" aria-label="Видалити вимірювання">×</button></article>`).join("");
+  $$('[data-delete-weight]').forEach((button) => button.addEventListener("click", () => { const id = button.dataset.deleteWeight; state.deletedIds = [...new Set([...(state.deletedIds || []), id])]; state.weightRecords = state.weightRecords.filter((item) => item.id !== id); saveState(); render(); toast("Вимірювання видалено"); }));
 }
 
 function renderVaccinations() {
@@ -220,7 +237,7 @@ function normalizeCloudState(saved = {}) {
   const profile = { ...defaultState.profile, ...(saved.profile || {}) };
   const passport = { ...defaultState.passport, ...(saved.passport || {}) };
   const deletedIds = Array.isArray(saved.deletedIds) ? saved.deletedIds : [];
-  return { ...structuredClone(defaultState), ...saved, profile, passport, vaccinations: Array.isArray(saved.vaccinations) ? saved.vaccinations : structuredClone(defaultState.vaccinations), deletedIds, events: (Array.isArray(saved.events) ? saved.events : []).filter((item) => !deletedIds.includes(item.id)), reminders: normalizeReminders((Array.isArray(saved.reminders) ? saved.reminders : []).filter((item) => !deletedIds.includes(item.id))) };
+  return { ...structuredClone(defaultState), ...saved, profile, passport, weightRecords: (Array.isArray(saved.weightRecords) ? saved.weightRecords : structuredClone(defaultState.weightRecords)).filter((item) => !deletedIds.includes(item.id)), vaccinations: Array.isArray(saved.vaccinations) ? saved.vaccinations : structuredClone(defaultState.vaccinations), deletedIds, events: (Array.isArray(saved.events) ? saved.events : []).filter((item) => !deletedIds.includes(item.id)), reminders: normalizeReminders((Array.isArray(saved.reminders) ? saved.reminders : []).filter((item) => !deletedIds.includes(item.id))) };
 }
 function mergeItems(localItems = [], remoteItems = [], deletedIds = []) {
   const merged = new Map(remoteItems.filter((item) => item?.id).map((item) => [item.id, item]));
@@ -235,6 +252,7 @@ function mergeCloudStates(remoteSaved = {}, localSaved = {}) {
     ...remote,
     profile: remote.profile,
     passport: remote.passport,
+    weightRecords: mergeItems(local.weightRecords, remote.weightRecords, deletedIds),
     vaccinations: mergeItems(local.vaccinations, remote.vaccinations, deletedIds),
     deletedIds,
     events: mergeItems(local.events, remote.events, deletedIds),
@@ -311,12 +329,13 @@ async function initCloud() {
 }
 
 $$('[data-event]').forEach((button) => button.addEventListener("click", () => addEvent(button.dataset.event)));
-$$('[data-open]').forEach((button) => button.addEventListener("click", () => { openModal(button.dataset.open); if (button.dataset.open === "profileModal") fillForm($("#profileForm"), state.profile); if (button.dataset.open === "passportModal") fillForm($("#passportForm"), state.passport); if (button.dataset.open === "eventModal") { $("#eventForm").reset(); $("#eventForm").elements.date.value = todayKey(); $("#eventForm").elements.time.value = currentTimeValue(); } }));
+$$('[data-open]').forEach((button) => button.addEventListener("click", () => { openModal(button.dataset.open); if (button.dataset.open === "profileModal") fillForm($("#profileForm"), state.profile); if (button.dataset.open === "passportModal") fillForm($("#passportForm"), state.passport); if (button.dataset.open === "weightModal") { $("#weightForm").reset(); $("#weightForm").elements.date.value = todayKey(); $("#weightForm").elements.time.value = currentTimeValue(); renderWeight(); } if (button.dataset.open === "eventModal") { $("#eventForm").reset(); $("#eventForm").elements.date.value = todayKey(); $("#eventForm").elements.time.value = currentTimeValue(); } }));
 $$('[data-close]').forEach((button) => button.addEventListener("click", () => closeModal(button.closest(".modal-backdrop"))));
 $$('.modal-backdrop').forEach((backdrop) => backdrop.addEventListener("click", (event) => { if (event.target === backdrop) closeModal(backdrop); }));
 
 $("#profileForm").addEventListener("submit", (event) => { event.preventDefault(); state.profile = Object.fromEntries(new FormData(event.target)); saveState(); render(); closeModal($("#profileModal")); toast("Профіль Луни збережено"); });
 $("#passportForm").addEventListener("submit", (event) => { event.preventDefault(); state.passport = Object.fromEntries(new FormData(event.target)); saveState(); closeModal($("#passportModal")); toast("Дані ветпаспорту збережено"); });
+$("#weightForm").addEventListener("submit", (event) => { event.preventDefault(); const form = Object.fromEntries(new FormData(event.target)); const weight = Number(form.weight); if (!form.date || !Number.isFinite(weight) || weight <= 0) return toast("Вкажіть коректну вагу та дату"); state.weightRecords = [...(state.weightRecords || []), { id: crypto.randomUUID(), date: form.date, time: form.time || "", weight, note: form.note || "" }]; saveState(); event.target.reset(); closeModal($("#weightModal")); render(); toast("Вагу Луни збережено"); });
 $("#reminderForm").addEventListener("submit", (event) => { event.preventDefault(); const form = Object.fromEntries(new FormData(event.target)); state.reminders.push({ ...form, id: crypto.randomUUID() }); saveState(); event.target.reset(); closeModal($("#reminderModal")); render(); toast("Нагадування додано"); });
 $("#eventForm").addEventListener("submit", (event) => { event.preventDefault(); const form = Object.fromEntries(new FormData(event.target)); const createdAt = localIso(form.date, form.time); if (!createdAt) return toast("Перевірте дату і час"); state.events.push({ id: crypto.randomUUID(), type: form.type, createdAt, note: form.note || "" }); saveState(); event.target.reset(); closeModal($("#eventModal")); render(); toast(`${eventMeta[form.type].label} — записано`); });
 $("#historyFilter").addEventListener("change", renderAllEvents);
