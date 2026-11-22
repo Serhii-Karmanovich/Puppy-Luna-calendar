@@ -47,7 +47,10 @@ const eventMeta = {
   pee: { label: "Попісяла", icon: "💧" },
   poop: { label: "Покакала", icon: "◒" },
   walk: { label: "Вигул", icon: "🐾" },
-  food: { label: "Годування", icon: "🍽️" }
+  food: { label: "Годування", icon: "🍽️" },
+  water: { label: "Вода", icon: "Вода" },
+  wake: { label: "Пробудження", icon: "Сон" },
+  play: { label: "Гра / активність", icon: "Гра" }
 };
 const reminderMeta = {
   vaccine: { label: "Вакцинація", icon: "💉" },
@@ -83,7 +86,7 @@ function loadState() {
       weightRecords: Array.isArray(saved.weightRecords) ? saved.weightRecords : structuredClone(defaultState.weightRecords),
       vaccinations: Array.isArray(saved.vaccinations) ? saved.vaccinations : structuredClone(defaultState.vaccinations),
       deletedIds: Array.isArray(saved.deletedIds) ? saved.deletedIds : [],
-      events: Array.isArray(saved.events) && saved.events.length ? saved.events : structuredClone(defaultState.events),
+      events: expandToiletNotes(Array.isArray(saved.events) && saved.events.length ? saved.events : structuredClone(defaultState.events)),
       reminders: normalizeReminders(Array.isArray(saved.reminders) ? saved.reminders : [])
     };
   }
@@ -143,7 +146,7 @@ function render() {
   $("#profileName").textContent = profile.name || "Луна";
   $("#agePill").textContent = calculateAge(profile.birthDate);
   $("#profileMeta").textContent = `${profile.breed || "Порода не додана"} · ${profile.birthDate ? `нар. ${formatDate(profile.birthDate, { day: "numeric", month: "long", year: "numeric" })}` : "дата народження не додана"}`;
-  renderWeight(); renderReminders(); renderTodayEvents(); renderInsights(); renderAllEvents(); renderVaccinations();
+  renderWeight(); renderToiletInsights(); renderReminders(); renderTodayEvents(); renderInsights(); renderAllEvents(); renderVaccinations();
 }
 
 function formatWeight(value) { return Number(value).toLocaleString("uk-UA", { minimumFractionDigits: 1, maximumFractionDigits: 2 }); }
@@ -159,6 +162,131 @@ function renderWeight() {
   change.textContent = difference === null ? "Перше вимірювання" : `${difference > 0 ? "+" : ""}${formatWeight(difference)} кг від попереднього`;
   if (history) history.innerHTML = records.map((item, index) => `<article class="weight-record"><div><strong>${formatWeight(item.weight)} кг</strong><span>${formatDate(item.date, { day: "numeric", month: "long", year: "numeric" })}${item.time ? ` · ${escapeHtml(item.time)}` : ""}</span>${item.note ? `<small>${escapeHtml(item.note)}</small>` : ""}</div><button class="delete-event" data-delete-weight="${item.id}" type="button" aria-label="Видалити вимірювання">×</button></article>`).join("");
   $$('[data-delete-weight]').forEach((button) => button.addEventListener("click", () => { const id = button.dataset.deleteWeight; state.deletedIds = [...new Set([...(state.deletedIds || []), id])]; state.weightRecords = state.weightRecords.filter((item) => item.id !== id); saveState(); render(); toast("Вимірювання видалено"); }));
+}
+
+function expandToiletNotes(events = []) {
+  const existing = new Set(events.map((event) => event?.id));
+  const derived = [];
+  events.forEach((event) => {
+    const note = String(event?.note || "").toLowerCase();
+    if (event?.type !== "walk" || (!note.includes("попісяла") && !note.includes("покакала"))) return;
+    const location = note.includes("вдома") || note.includes("пелен") ? "inside" : note.includes("вулиц") ? "outside" : "";
+    [["pee", "попісяла"], ["poop", "покакала"]].forEach(([type, word]) => {
+      if (!note.includes(word)) return;
+      const id = `toilet-derived-${event.id}-${type}`;
+      if (existing.has(id)) return;
+      existing.add(id);
+      derived.push({ id, type, createdAt: event.createdAt, note: `Зафіксовано у примітці до вигулу`, location, sourceEventId: event.id });
+    });
+  });
+  return [...events, ...derived];
+}
+
+function median(values = []) {
+  const sorted = values.filter((value) => Number.isFinite(value)).sort((a, b) => a - b);
+  if (!sorted.length) return null;
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+}
+
+const toiletTriggers = {
+  wake: { label: "після пробудження", types: ["wake"], maxHours: 3 },
+  food: { label: "після годування", types: ["food"], maxHours: 4 },
+  water: { label: "після води", types: ["water"], maxHours: 3 },
+  play: { label: "після гри або активності", types: ["play", "walk"], maxHours: 3 }
+};
+const weekdayLabels = ["неділю", "понеділок", "вівторок", "середу", "четвер", "п’ятницю", "суботу"];
+
+function percentile(values = [], ratio = 0.5) {
+  const sorted = values.filter((value) => Number.isFinite(value)).sort((a, b) => a - b);
+  if (!sorted.length) return null;
+  return sorted[Math.min(sorted.length - 1, Math.floor((sorted.length - 1) * ratio))];
+}
+
+function groupStats(samples = []) {
+  const delays = samples.map((sample) => sample.delayMinutes).filter((minutes) => Number.isFinite(minutes) && minutes >= 1 && minutes <= 360);
+  return { count: delays.length, median: median(delays), low: percentile(delays, 0.25), high: percentile(delays, 0.75) };
+}
+
+function findTriggerForToilet(toilet, allEvents) {
+  const toiletTime = new Date(toilet.createdAt).getTime();
+  const explicit = toilet.context && toiletTriggers[toilet.context];
+  const candidates = Object.entries(toiletTriggers).flatMap(([key, meta]) => allEvents.filter((event) => meta.types.includes(event.type)).map((event) => ({ key, event, delta: toiletTime - new Date(event.createdAt).getTime(), max: meta.maxHours * 3600000 })));
+  const valid = candidates.filter((item) => item.delta >= 60000 && item.delta <= item.max);
+  if (!valid.length) return null;
+  const preferred = explicit ? valid.filter((item) => item.key === toilet.context) : valid;
+  const pool = preferred.length ? preferred : valid;
+  return pool.sort((a, b) => a.delta - b.delta)[0];
+}
+
+function toiletAnalytics(days = 7) {
+  const end = new Date();
+  const start = new Date(end); start.setHours(0, 0, 0, 0); start.setDate(start.getDate() - (days - 1));
+  const periodEvents = state.events.filter((event) => {
+    const time = new Date(event.createdAt).getTime();
+    return Number.isFinite(time) && time >= start.getTime() && time <= end.getTime();
+  });
+  const records = periodEvents.filter((event) => ["pee", "poop"].includes(event.type)).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const allEvents = state.events.filter((event) => Number.isFinite(new Date(event.createdAt).getTime()));
+  const toiletTimes = records.map((event) => new Date(event.createdAt).getTime());
+  const intervals = toiletTimes.slice(1).map((time, index) => (time - toiletTimes[index]) / 3600000).filter((hours) => hours >= 0.25 && hours <= 12);
+  const samples = records.map((event, index) => {
+    const trigger = findTriggerForToilet(event, allEvents);
+    const previous = records[index - 1];
+    return { event, type: event.type, location: event.location || "", triggerKey: trigger?.key || "", delayMinutes: trigger ? trigger.delta / 60000 : null, previousInterval: previous ? (new Date(event.createdAt).getTime() - new Date(previous.createdAt).getTime()) / 60000 : null };
+  });
+  const triggerGroups = Object.fromEntries(Object.keys(toiletTriggers).flatMap((key) => [[`${key}-all`, groupStats(samples.filter((sample) => sample.triggerKey === key))], [`${key}-pee`, groupStats(samples.filter((sample) => sample.triggerKey === key && sample.type === "pee"))], [`${key}-poop`, groupStats(samples.filter((sample) => sample.triggerKey === key && sample.type === "poop"))]]));
+  const hourCounts = records.reduce((counts, event) => { const hour = new Date(event.createdAt).getHours(); counts[hour] = (counts[hour] || 0) + 1; return counts; }, {});
+  const weekdayCounts = records.reduce((counts, event) => { const day = new Date(event.createdAt).getDay(); counts[day] = (counts[day] || 0) + 1; return counts; }, {});
+  const locationCounts = records.reduce((counts, event) => { if (event.location) counts[event.location] = (counts[event.location] || 0) + 1; return counts; }, {});
+  const last = records.at(-1) || null;
+  const typicalInterval = median(intervals);
+  let nextWindow = last && typicalInterval ? new Date(new Date(last.createdAt).getTime() + typicalInterval * 3600000) : null;
+  let guard = 0; while (nextWindow && nextWindow <= end && guard < 24) { nextWindow = new Date(nextWindow.getTime() + typicalInterval * 3600000); guard += 1; }
+  const recentTrigger = [...state.events].filter((event) => toiletTriggers[event.type] && new Date(event.createdAt) <= end).sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0] || null;
+  const recentKey = recentTrigger ? Object.keys(toiletTriggers).find((key) => toiletTriggers[key].types.includes(recentTrigger.type)) : "";
+  const recentGroup = recentKey ? triggerGroups[`${recentKey}-all`] : null;
+  return { records, samples, peeCount: records.filter((event) => event.type === "pee").length, poopCount: records.filter((event) => event.type === "poop").length, typicalInterval, foodDelay: triggerGroups["food-all"]?.median || null, triggerGroups, hourCounts, weekdayCounts, locationCounts, nextWindow, recentTrigger, recentKey, recentGroup, confidence: records.length >= 14 ? "висока" : records.length >= 7 ? "середня" : "низька" };
+}
+
+function formatHours(hours) {
+  if (!Number.isFinite(hours)) return "—";
+  if (hours < 1) return `${Math.round(hours * 60)} хв`;
+  return `${hours.toLocaleString("uk-UA", { maximumFractionDigits: 1 })} год`;
+}
+
+function formatMinutesRange(stats) {
+  if (!stats?.median) return "—";
+  const low = Math.max(5, Math.round(stats.low || stats.median - 10)); const high = Math.max(low, Math.round(stats.high || stats.median + 10));
+  return `${low}–${high} хв`;
+}
+
+function renderToiletInsights() {
+  const recommendation = $("#toiletRecommendation"); const stats = $("#toiletStats"); const patterns = $("#toiletPatterns"); const hourly = $("#toiletHourly");
+  if (!recommendation || !stats || !patterns || !hourly) return;
+  const period = Number($("#toiletPeriod")?.value || 7); const data = toiletAnalytics(period);
+  const recentTriggerTime = data.recentTrigger ? new Date(data.recentTrigger.createdAt).getTime() : 0;
+  const elapsed = recentTriggerTime ? (Date.now() - recentTriggerTime) / 60000 : null;
+  const recentStats = data.recentKey ? data.triggerGroups[`${data.recentKey}-all`] : null;
+  if (data.records.length < 3) {
+    recommendation.innerHTML = `<strong>Поки замало даних для персонального прогнозу.</strong><small>Перші 7–14 днів система навчається. Записуйте сон, їжу, воду, активність і окремо сечовипускання та дефекацію.</small>`;
+  } else if (recentStats?.median && elapsed >= 0 && elapsed <= 240) {
+    const windowText = formatMinutesRange(recentStats); const typeText = data.triggerKey === "food" ? "сечовипускання" : "туалет";
+    const inWindow = elapsed >= (recentStats.low || recentStats.median - 10) && elapsed <= (recentStats.high || recentStats.median + 10);
+    recommendation.innerHTML = inWindow ? `<strong>Зараз імовірність ${typeText} підвищена.</strong><small>${toiletTriggers[data.recentKey].label}: у Луни найчастіше через ${windowText}. Вигул краще запланувати зараз.</small>` : `<strong>Після ${toiletTriggers[data.recentKey].label} рекомендований вигул через ${windowText}.</strong><small>Минуло приблизно ${Math.round(elapsed)} хв. Впевненість: ${recentStats.count >= 10 ? "висока" : recentStats.count >= 5 ? "середня" : "низька"}.</small>`;
+  } else if (data.nextWindow) {
+    const from = new Date(data.nextWindow.getTime() - 15 * 60000); const to = new Date(data.nextWindow.getTime() + 15 * 60000);
+    recommendation.innerHTML = `<strong>Орієнтовне наступне вікно вигулу: ${formatTime(from)}–${formatTime(to)}</strong><small>За попереднім туалетом. Впевненість: ${data.confidence}. Рекомендація оновлюється з новими записами.</small>`;
+  } else {
+    recommendation.innerHTML = `<strong>Ритм формується.</strong><small>Записуйте події послідовно — система зможе порівнювати тригери та попередній туалет.</small>`;
+  }
+  const outside = data.locationCounts.outside || 0; const inside = data.locationCounts.inside || 0; const knownLocations = outside + inside;
+  stats.innerHTML = `<div class="toilet-stat"><strong>${data.peeCount}</strong><span>сечовипускань</span></div><div class="toilet-stat"><strong>${data.poopCount}</strong><span>дефекацій</span></div><div class="toilet-stat"><strong>${formatHours(data.typicalInterval)}</strong><span>медіанний інтервал</span></div><div class="toilet-stat"><strong>${data.foodDelay ? `${Math.round(data.foodDelay)} хв` : "—"}</strong><span>після їжі</span></div><div class="toilet-stat"><strong>${knownLocations ? `${Math.round((outside / knownLocations) * 100)}%` : "—"}</strong><span>на вулиці</span></div>`;
+  const patternCards = Object.entries(toiletTriggers).map(([key, meta]) => ({ key, meta, stats: data.triggerGroups[`${key}-all`] })).filter((item) => item.stats.count).sort((a, b) => b.stats.count - a.stats.count);
+  const weekday = Object.entries(data.weekdayCounts).sort(([, a], [, b]) => b - a)[0];
+  patterns.innerHTML = patternCards.length || weekday ? `<div class="toilet-pattern-title">Закономірності</div><div class="toilet-pattern-list">${patternCards.slice(0, 4).map(({ meta, stats: item }) => `<span><b>${meta.label}</b><small>${formatMinutesRange(item)} · ${item.count} спостережень</small></span>`).join("")}${weekday ? `<span><b>Найчастіше у ${weekdayLabels[Number(weekday[0])]}</b><small>${weekday[1]} записів у вибраному періоді</small></span>` : ""}</div>` : "";
+  const hours = Object.entries(data.hourCounts).sort(([, a], [, b]) => b - a).slice(0, 5); const max = Math.max(...hours.map(([, count]) => count), 1);
+  hourly.innerHTML = hours.length ? `<div class="toilet-hourly-title">Найчастіші години туалету</div>${hours.map(([hour, count]) => `<div class="toilet-hour-row"><span>${String(hour).padStart(2, "0")}:00</span><i style="--bar-width:${Math.round((count / max) * 100)}%"></i><b>${count}</b></div>`).join("")}` : "";
 }
 
 function renderVaccinations() {
@@ -237,7 +365,7 @@ function normalizeCloudState(saved = {}) {
   const profile = { ...defaultState.profile, ...(saved.profile || {}) };
   const passport = { ...defaultState.passport, ...(saved.passport || {}) };
   const deletedIds = Array.isArray(saved.deletedIds) ? saved.deletedIds : [];
-  return { ...structuredClone(defaultState), ...saved, profile, passport, weightRecords: (Array.isArray(saved.weightRecords) ? saved.weightRecords : structuredClone(defaultState.weightRecords)).filter((item) => !deletedIds.includes(item.id)), vaccinations: Array.isArray(saved.vaccinations) ? saved.vaccinations : structuredClone(defaultState.vaccinations), deletedIds, events: (Array.isArray(saved.events) ? saved.events : []).filter((item) => !deletedIds.includes(item.id)), reminders: normalizeReminders((Array.isArray(saved.reminders) ? saved.reminders : []).filter((item) => !deletedIds.includes(item.id))) };
+  return { ...structuredClone(defaultState), ...saved, profile, passport, weightRecords: (Array.isArray(saved.weightRecords) ? saved.weightRecords : structuredClone(defaultState.weightRecords)).filter((item) => !deletedIds.includes(item.id)), vaccinations: Array.isArray(saved.vaccinations) ? saved.vaccinations : structuredClone(defaultState.vaccinations), deletedIds, events: expandToiletNotes((Array.isArray(saved.events) ? saved.events : []).filter((item) => !deletedIds.includes(item.id))), reminders: normalizeReminders((Array.isArray(saved.reminders) ? saved.reminders : []).filter((item) => !deletedIds.includes(item.id))) };
 }
 function mergeItems(localItems = [], remoteItems = [], deletedIds = []) {
   const merged = new Map(remoteItems.filter((item) => item?.id).map((item) => [item.id, item]));
@@ -337,8 +465,9 @@ $("#profileForm").addEventListener("submit", (event) => { event.preventDefault()
 $("#passportForm").addEventListener("submit", (event) => { event.preventDefault(); state.passport = Object.fromEntries(new FormData(event.target)); saveState(); closeModal($("#passportModal")); toast("Дані ветпаспорту збережено"); });
 $("#weightForm").addEventListener("submit", (event) => { event.preventDefault(); const form = Object.fromEntries(new FormData(event.target)); const weight = Number(form.weight); if (!form.date || !Number.isFinite(weight) || weight <= 0) return toast("Вкажіть коректну вагу та дату"); state.weightRecords = [...(state.weightRecords || []), { id: crypto.randomUUID(), date: form.date, time: form.time || "", weight, note: form.note || "" }]; saveState(); event.target.reset(); closeModal($("#weightModal")); render(); toast("Вагу Луни збережено"); });
 $("#reminderForm").addEventListener("submit", (event) => { event.preventDefault(); const form = Object.fromEntries(new FormData(event.target)); state.reminders.push({ ...form, id: crypto.randomUUID() }); saveState(); event.target.reset(); closeModal($("#reminderModal")); render(); toast("Нагадування додано"); });
-$("#eventForm").addEventListener("submit", (event) => { event.preventDefault(); const form = Object.fromEntries(new FormData(event.target)); const createdAt = localIso(form.date, form.time); if (!createdAt) return toast("Перевірте дату і час"); state.events.push({ id: crypto.randomUUID(), type: form.type, createdAt, note: form.note || "" }); saveState(); event.target.reset(); closeModal($("#eventModal")); render(); toast(`${eventMeta[form.type].label} — записано`); });
+$("#eventForm").addEventListener("submit", (event) => { event.preventDefault(); const form = Object.fromEntries(new FormData(event.target)); const createdAt = localIso(form.date, form.time); if (!createdAt) return toast("Перевірте дату і час"); state.events.push({ id: crypto.randomUUID(), type: form.type, createdAt, note: form.note || "", location: form.location || "", context: form.context || "" }); saveState(); event.target.reset(); closeModal($("#eventModal")); render(); toast(`${eventMeta[form.type].label} — записано`); });
 $("#historyFilter").addEventListener("change", renderAllEvents);
+$("#toiletPeriod")?.addEventListener("change", renderToiletInsights);
 $("#clearEvents").addEventListener("click", () => { if (confirm("Очистити події лише за сьогодні?")) { const removed = state.events.filter((event) => localDateKey(event.createdAt) === todayKey()).map((event) => event.id); state.deletedIds = [...new Set([...(state.deletedIds || []), ...removed])]; state.events = state.events.filter((event) => !removed.includes(event.id)); saveState(); render(); toast("Події за сьогодні очищено"); } });
 $("#exportButton").addEventListener("click", () => { const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" }); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `luna-vetpassport-${todayKey()}.json`; link.click(); URL.revokeObjectURL(link.href); toast("Резервну копію завантажено"); });
 $("#notifyButton").addEventListener("click", async () => { if (!("Notification" in window)) return toast("Цей браузер не підтримує сповіщення"); const permission = await Notification.requestPermission(); toast(permission === "granted" ? "Нагадування дозволено" : "Дозвіл не надано"); });
