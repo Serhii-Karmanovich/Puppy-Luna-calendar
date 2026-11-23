@@ -14,7 +14,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="./styles.css?v=4" />
+    <link rel="stylesheet" href="./styles.css?v=5" />
     <link rel="stylesheet" href="./vaccine.css?v=3" />
   </head>
   <body>
@@ -34,17 +34,8 @@
           <p id="accessGateText">Увійдіть або створіть акаунт за персональним посиланням від власника сім’ї Луни.</p>
           <button class="primary-button" id="accessLoginButton" type="button">Увійти або створити акаунт</button>
         </section>
-        <section class="profile-strip panel">
-          <div class="avatar"><img src="./luna-avatar.svg" alt="Луна" /></div>
-          <div class="profile-summary">
-          <div class="profile-title-row"><span class="profile-name" id="profileName">Луна</span><span class="pill pill-green" id="agePill">0 р. 5 міс. 17 дн.</span></div>
-            <p id="profileMeta">Французький бульдог · дата народження не додана</p>
-          </div>
-          <button class="text-button" data-open="profileModal" type="button" aria-label="Редагувати профіль Луни">Редагувати <span>↗</span></button>
-        </section>
-
-        <section class="hero" id="today">
-          <div>
+        <section class="hero profile-hero" id="today">
+          <div class="hero-copy-block">
             <p class="eyebrow">СЬОГОДНІ · <span id="todayDate"></span></p>
             <h1>Доброго дня,<br /><em>Луно.</em></h1>
             <p class="hero-copy daily-quote" id="dailyQuote" aria-live="polite">
@@ -52,7 +43,14 @@
               <small id="dailyQuoteReference">— Книга Притч, 9:10</small>
             </p>
           </div>
-          <div class="hero-avatar" aria-hidden="true"><img src="./luna-avatar.svg" alt="" /></div>
+          <div class="hero-profile">
+            <div class="hero-avatar"><img src="./luna-avatar.svg" alt="Луна" /></div>
+            <div class="hero-profile-info">
+              <div class="profile-title-row"><span class="profile-name" id="profileName">Луна</span><span class="pill pill-green" id="agePill">0 р. 5 міс. 17 дн.</span></div>
+              <p id="profileMeta">Французький бульдог · дата народження не додана</p>
+            </div>
+            <button class="text-button hero-edit" data-open="profileModal" type="button" aria-label="Редагувати профіль Луни">Редагувати <span>↗</span></button>
+          </div>
         </section>
 
         <section class="weight-panel panel" aria-labelledby="weightHeading">
