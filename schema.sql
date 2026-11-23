@@ -23,6 +23,19 @@ create table if not exists public.luna_state (
   updated_by uuid references auth.users(id) on delete set null
 );
 
+create table if not exists public.household_invites (
+  id uuid primary key default gen_random_uuid(),
+  household_id uuid not null references public.households(id) on delete cascade,
+  token_hash text not null unique,
+  expires_at timestamptz not null default (now() + interval '7 days'),
+  max_uses integer not null default 1 check (max_uses between 1 and 10),
+  used_count integer not null default 0 check (used_count >= 0),
+  created_by uuid not null references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  first_used_at timestamptz,
+  revoked_at timestamptz
+);
+
 create or replace function public.is_luna_member(target_household uuid)
 returns boolean
 language sql
@@ -73,6 +86,73 @@ begin
 end;
 $$;
 
+create or replace function public.create_luna_invite(target_household uuid default null)
+returns table (invite_id uuid, invite_token text, expires_at timestamptz)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  target uuid := target_household;
+  token text := encode(gen_random_bytes(24), 'hex');
+  created public.household_invites;
+begin
+  if auth.uid() is null then raise exception 'Потрібно увійти'; end if;
+  if target is null then
+    select household_id into target from public.household_members where user_id = auth.uid() and role = 'owner' order by created_at limit 1;
+  end if;
+  if target is null or not exists (select 1 from public.household_members where household_id = target and user_id = auth.uid() and role = 'owner') then
+    raise exception 'Створювати запрошення може лише власник сім’ї';
+  end if;
+  insert into public.household_invites (household_id, token_hash, created_by)
+  values (target, encode(digest(token, 'sha256'), 'hex'), auth.uid())
+  returning * into created;
+  return query select created.id, token, created.expires_at;
+end;
+$$;
+
+create or replace function public.redeem_luna_invite(token text)
+returns table (household_id uuid)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  invite public.household_invites;
+begin
+  if auth.uid() is null then raise exception 'Потрібно увійти'; end if;
+  select * into invite from public.household_invites
+  where token_hash = encode(digest(trim(token), 'sha256'), 'hex')
+    and revoked_at is null
+    and expires_at > now()
+    and used_count < max_uses
+  for update;
+  if invite.id is null then raise exception 'Посилання недійсне, прострочене або вже використане'; end if;
+  if exists (select 1 from public.household_members where household_id = invite.household_id and user_id = auth.uid()) then
+    return query select invite.household_id;
+  end if;
+  insert into public.household_members (household_id, user_id, role) values (invite.household_id, auth.uid(), 'member') on conflict do nothing;
+  update public.household_invites set used_count = used_count + 1, first_used_at = coalesce(first_used_at, now()) where id = invite.id;
+  return query select invite.household_id;
+end;
+$$;
+
+create or replace function public.revoke_luna_invite(target_invite uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then raise exception 'Потрібно увійти'; end if;
+  update public.household_invites
+  set revoked_at = now()
+  where id = target_invite
+    and exists (select 1 from public.household_members where household_id = household_invites.household_id and user_id = auth.uid() and role = 'owner');
+  return found;
+end;
+$$;
+
 create or replace function public.save_luna_state(
   target_household uuid,
   payload jsonb,
@@ -115,6 +195,7 @@ $$;
 alter table public.households enable row level security;
 alter table public.household_members enable row level security;
 alter table public.luna_state enable row level security;
+alter table public.household_invites enable row level security;
 
 drop policy if exists "Members can read their household" on public.households;
 create policy "Members can read their household" on public.households for select to authenticated using (public.is_luna_member(id));
@@ -132,11 +213,17 @@ drop policy if exists "Members can update Luna state" on public.luna_state;
 create policy "Members can update Luna state" on public.luna_state for update to authenticated using (public.is_luna_member(household_id)) with check (public.is_luna_member(household_id));
 
 grant execute on function public.create_luna_household() to authenticated;
-grant execute on function public.join_luna_household(text) to authenticated;
+-- v2.1: joining is invite-link-only. Keep the legacy function for existing
+-- database compatibility, but do not expose it through the client API.
+revoke execute on function public.join_luna_household(text) from authenticated;
+grant execute on function public.create_luna_invite(uuid) to authenticated;
+grant execute on function public.redeem_luna_invite(text) to authenticated;
+grant execute on function public.revoke_luna_invite(uuid) to authenticated;
 revoke execute on function public.save_luna_state(uuid, jsonb, timestamptz) from public;
 grant execute on function public.save_luna_state(uuid, jsonb, timestamptz) to authenticated;
 grant select on public.households, public.household_members, public.luna_state to authenticated;
 grant insert, update on public.luna_state to authenticated;
+revoke all on public.household_invites from anon, authenticated;
 
 do $$
 begin

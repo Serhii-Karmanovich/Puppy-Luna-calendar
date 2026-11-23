@@ -1,9 +1,11 @@
 const STORAGE_KEY = "luna-puppy-passport-v1";
 const CLOUD_STORAGE_KEY = "luna-household-id";
+const PENDING_INVITE_KEY = "luna-pending-invite-v2";
 const cloudConfig = window.LUNA_SUPABASE_CONFIG || {};
 let cloudClient = null;
 let cloudSession = null;
 let cloudHouseholdId = localStorage.getItem(CLOUD_STORAGE_KEY) || "";
+let cloudRole = "";
 let cloudChannel = null;
 let cloudApplying = false;
 let cloudSaveTimer = null;
@@ -39,9 +41,28 @@ const $$ = (selector) => [...document.querySelectorAll(selector)];
 const PUBLIC_APP_URL = "https://serhii-karmanovich.github.io/Puppy-Luna-calendar/";
 
 function authRedirectUrl() {
-  if (["localhost", "127.0.0.1", "::1"].includes(window.location.hostname)) return PUBLIC_APP_URL;
-  return `${window.location.origin}${window.location.pathname}`;
+  const base = ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname) ? PUBLIC_APP_URL : `${window.location.origin}${window.location.pathname}`;
+  const token = sessionStorage.getItem(PENDING_INVITE_KEY);
+  return token ? `${base}?invite=${encodeURIComponent(token)}` : base;
 }
+
+function rememberInviteFromUrl() {
+  try {
+    const url = new URL(window.location.href);
+    const token = url.searchParams.get("invite");
+    if (!token) return;
+    sessionStorage.setItem(PENDING_INVITE_KEY, token.trim());
+    url.searchParams.delete("invite");
+    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+  } catch {}
+}
+function pendingInviteToken() { return sessionStorage.getItem(PENDING_INVITE_KEY) || ""; }
+function extractInviteToken(value = "") {
+  const input = value.trim();
+  if (!input) return "";
+  try { return new URL(input).searchParams.get("invite")?.trim() || input; } catch { return input; }
+}
+rememberInviteFromUrl();
 
 const eventMeta = {
   pee: { label: "Попісяла", icon: "💧" },
@@ -348,18 +369,26 @@ function fillForm(form, data) { Object.entries(data).forEach(([key, value]) => {
 function cloudConfigured() { return Boolean(cloudConfig.url && cloudConfig.anonKey && window.supabase?.createClient); }
 function cloudStatus(message) { const node = $("#cloudStatus"); if (node) node.textContent = message; }
 function renderCloudUi() {
-  const button = $("#syncButton"); const form = $("#authForm"); const actions = $("#familyActions"); const info = $("#familyInfo");
+  const button = $("#syncButton"); const form = $("#authForm"); const actions = $("#familyActions"); const info = $("#familyInfo"); const gate = $("#accessGate"); const gateTitle = $("#accessGateTitle"); const gateText = $("#accessGateText"); const createInvite = $("#createInviteButton"); const inviteResult = $("#inviteResult"); const inviteJoinFields = $("#inviteJoinFields");
   if (!cloudConfigured()) {
     button.textContent = "Підключити"; form.hidden = true; actions.hidden = true;
+    document.body.classList.remove("app-locked"); if (gate) gate.hidden = true;
     cloudStatus("Потрібно додати Project URL і anon key у supabase-config.js."); return;
   }
   if (!cloudSession) {
     button.textContent = "Увійти"; form.hidden = false; actions.hidden = true;
-    cloudStatus("Увійдіть, щоб бачити спільні записи на всіх пристроях."); return;
+    document.body.classList.add("app-locked"); if (gate) gate.hidden = false; if (gateTitle) gateTitle.textContent = pendingInviteToken() ? "Вас запросили до сім’ї Луни" : "Щоденник Луни доступний за запрошенням"; if (gateText) gateText.textContent = pendingInviteToken() ? "Створіть акаунт або увійдіть, щоб прийняти персональне запрошення." : "Увійдіть або створіть акаунт за персональним посиланням від власника сім’ї Луни.";
+    cloudStatus(pendingInviteToken() ? "Запрошення знайдено. Увійдіть або створіть акаунт." : "Для доступу до даних потрібне запрошення від власника."); return;
   }
-  button.textContent = cloudHouseholdId ? "Сім’я" : "Налаштувати"; form.hidden = true; actions.hidden = false;
-  info.textContent = cloudHouseholdId ? "Синхронізація активна. Код сім’ї можна передати іншим користувачам." : "Створіть сім’ю або приєднайтеся за кодом запрошення.";
-  cloudStatus(cloudHouseholdId ? "Дані Луни синхронізуються через Supabase." : "Акаунт підключено.");
+  const hasAccess = Boolean(cloudHouseholdId);
+  button.textContent = hasAccess ? "Сім’я" : "Налаштувати"; form.hidden = true; actions.hidden = false;
+  document.body.classList.toggle("app-locked", !hasAccess); if (gate) gate.hidden = hasAccess; if (gateTitle && !hasAccess) gateTitle.textContent = "Акаунт створено, але доступ ще не надано"; if (gateText && !hasAccess) gateText.textContent = "Відкрийте персональне посилання від власника сім’ї Луни або вставте його нижче.";
+  info.textContent = hasAccess ? `Синхронізація активна. Ви ${cloudRole === "owner" ? "власник" : "учасник"} сім’ї Луни.` : "Для доступу потрібне персональне посилання-запрошення.";
+  $("#createFamilyButton").hidden = hasAccess;
+  if (createInvite) createInvite.hidden = !hasAccess || cloudRole !== "owner";
+  if (inviteResult && !hasAccess) inviteResult.hidden = true;
+  if (inviteJoinFields) inviteJoinFields.hidden = hasAccess;
+  cloudStatus(hasAccess ? "Дані Луни синхронізуються через Supabase." : "Акаунт підключено. Очікується запрошення.");
 }
 function normalizeCloudState(saved = {}) {
   const profile = { ...defaultState.profile, ...(saved.profile || {}) };
@@ -436,11 +465,25 @@ async function connectHousehold(householdId) {
 }
 async function findHousehold() {
   if (!cloudSession) return;
-  const { data, error } = await cloudClient.from("household_members").select("household_id").eq("user_id", cloudSession.user.id).order("created_at", { ascending: true }).limit(1);
+  const { data, error } = await cloudClient.from("household_members").select("household_id, role").eq("user_id", cloudSession.user.id).order("created_at", { ascending: true }).limit(1);
   if (error) return cloudStatus(`Помилка доступу до сім’ї: ${error.message}`);
   const membership = data?.[0];
-  if (membership?.household_id) await connectHousehold(membership.household_id); else { cloudHouseholdId = ""; cloudLastUpdatedAt = null; localStorage.removeItem(CLOUD_STORAGE_KEY); renderCloudUi(); }
+  if (membership?.household_id) { cloudRole = membership.role || "member"; await connectHousehold(membership.household_id); } else { cloudHouseholdId = ""; cloudRole = ""; cloudLastUpdatedAt = null; localStorage.removeItem(CLOUD_STORAGE_KEY); renderCloudUi(); }
 }
+async function redeemInviteToken(token, announce = true) {
+  const value = extractInviteToken(token);
+  if (!cloudClient || !cloudSession || !value) return false;
+  const { data, error } = await cloudClient.rpc("redeem_luna_invite", { token: value });
+  if (error) { if (announce) cloudStatus(error.message || "Посилання недійсне або вже використане."); return false; }
+  const householdId = data?.[0]?.household_id;
+  if (!householdId) { if (announce) cloudStatus("Не вдалося прийняти запрошення."); return false; }
+  sessionStorage.removeItem(PENDING_INVITE_KEY);
+  cloudRole = "member";
+  await connectHousehold(householdId);
+  if (announce) cloudStatus("Запрошення прийнято. Доступ до сім’ї Луни активний.");
+  return true;
+}
+async function redeemPendingInvite() { return pendingInviteToken() ? redeemInviteToken(pendingInviteToken()) : false; }
 async function initCloud() {
   renderCloudUi();
   if (!cloudConfigured()) return;
@@ -448,11 +491,11 @@ async function initCloud() {
   const { data, error } = await cloudClient.auth.getSession();
   if (error) return cloudStatus(`Не вдалося перевірити сесію: ${error.message}`);
   cloudSession = data.session; renderCloudUi();
-  if (cloudSession) await findHousehold();
+  if (cloudSession) { const joined = await redeemPendingInvite(); if (!joined) await findHousehold(); }
   cloudClient.auth.onAuthStateChange((event, session) => {
     cloudSession = session;
     if (event === "PASSWORD_RECOVERY") openModal("passwordResetModal");
-    setTimeout(() => session && event !== "PASSWORD_RECOVERY" ? findHousehold() : renderCloudUi(), 0);
+    setTimeout(async () => { if (session && event !== "PASSWORD_RECOVERY") { const joined = await redeemPendingInvite(); if (!joined) await findHousehold(); } else renderCloudUi(); }, 0);
   });
 }
 
@@ -473,6 +516,7 @@ $("#exportButton").addEventListener("click", () => { const blob = new Blob([JSON
 $("#notifyButton").addEventListener("click", async () => { if (!("Notification" in window)) return toast("Цей браузер не підтримує сповіщення"); const permission = await Notification.requestPermission(); toast(permission === "granted" ? "Нагадування дозволено" : "Дозвіл не надано"); });
 
 $("#syncButton").addEventListener("click", () => { openModal("authModal"); renderCloudUi(); });
+$("#accessLoginButton").addEventListener("click", () => { openModal("authModal"); renderCloudUi(); });
 $("#authForm").addEventListener("submit", async (event) => {
   event.preventDefault(); if (!cloudClient) return cloudStatus("Спочатку додайте налаштування Supabase у supabase-config.js.");
   const form = Object.fromEntries(new FormData(event.target)); const action = event.submitter?.dataset.authAction || "signIn";
@@ -525,8 +569,10 @@ $("#passwordResetForm").addEventListener("submit", async (event) => {
   event.target.reset(); closeModal($("#passwordResetModal")); toast("Пароль успішно змінено.");
   await findHousehold();
 });
-$("#createFamilyButton").addEventListener("click", async () => { const { data, error } = await cloudClient.rpc("create_luna_household"); if (error) return cloudStatus(error.message); await connectHousehold(data?.[0]?.household_id); cloudStatus(`Сім’ю створено. Код запрошення: ${data?.[0]?.invite_code || ""}`); });
-$("#joinFamilyButton").addEventListener("click", async () => { const code = $("#inviteCodeInput").value.trim(); if (!code) return cloudStatus("Введіть код запрошення."); const { data, error } = await cloudClient.rpc("join_luna_household", { code }); if (error) return cloudStatus(error.message); await connectHousehold(data?.[0]?.household_id); cloudStatus("Ви приєдналися до сім’ї Луни."); });
+$("#createFamilyButton").addEventListener("click", async () => { const { data, error } = await cloudClient.rpc("create_luna_household"); if (error) return cloudStatus(error.message); cloudRole = "owner"; await connectHousehold(data?.[0]?.household_id); cloudStatus("Сім’ю Луни створено. Тепер створіть посилання для запрошення."); });
+$("#createInviteButton").addEventListener("click", async () => { const { data, error } = await cloudClient.rpc("create_luna_invite", { target_household: cloudHouseholdId }); if (error) return cloudStatus(error.message || "Не вдалося створити запрошення."); const token = data?.[0]?.invite_token; if (!token) return cloudStatus("Не вдалося отримати посилання-запрошення."); const link = `${PUBLIC_APP_URL}?invite=${encodeURIComponent(token)}`; $("#inviteLinkInput").value = link; $("#inviteResult").hidden = false; cloudStatus("Посилання створено. Надішліть його потрібному користувачу."); });
+$("#copyInviteButton").addEventListener("click", async () => { const link = $("#inviteLinkInput").value; try { await navigator.clipboard.writeText(link); cloudStatus("Посилання скопійовано."); } catch { cloudStatus("Скопіюйте посилання вручну з поля."); } });
+$("#joinFamilyButton").addEventListener("click", async () => { const token = extractInviteToken($("#inviteTokenInput").value); if (!token) return cloudStatus("Вставте посилання-запрошення."); await redeemInviteToken(token); });
 $("#signOutButton").addEventListener("click", async () => { if (cloudChannel) await cloudClient.removeChannel(cloudChannel); await cloudClient.auth.signOut(); cloudSession = null; cloudHouseholdId = ""; localStorage.removeItem(CLOUD_STORAGE_KEY); renderCloudUi(); });
 
 render(); initCloud();
