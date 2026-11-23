@@ -94,7 +94,7 @@ set search_path = public
 as $$
 declare
   target uuid := target_household;
-  token text := encode(gen_random_bytes(24), 'hex');
+  token text := encode(extensions.gen_random_bytes(24), 'hex');
   created public.household_invites;
 begin
   if auth.uid() is null then raise exception 'Потрібно увійти'; end if;
@@ -105,7 +105,7 @@ begin
     raise exception 'Створювати запрошення може лише власник сім’ї';
   end if;
   insert into public.household_invites (household_id, token_hash, created_by)
-  values (target, encode(digest(token, 'sha256'), 'hex'), auth.uid())
+  values (target, encode(extensions.digest(token, 'sha256'), 'hex'), auth.uid())
   returning * into created;
   return query select created.id, token, created.expires_at;
 end;
@@ -122,7 +122,7 @@ declare
 begin
   if auth.uid() is null then raise exception 'Потрібно увійти'; end if;
   select * into invite from public.household_invites
-  where token_hash = encode(digest(trim(token), 'sha256'), 'hex')
+  where token_hash = encode(extensions.digest(trim(token), 'sha256'), 'hex')
     and revoked_at is null
     and expires_at > now()
     and used_count < max_uses
