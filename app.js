@@ -167,6 +167,7 @@ function render() {
   $("#profileName").textContent = profile.name || "Луна";
   $("#agePill").textContent = calculateAge(profile.birthDate);
   $("#profileMeta").textContent = `${profile.breed || "Порода не додана"} · ${profile.birthDate ? `нар. ${formatDate(profile.birthDate, { day: "numeric", month: "long", year: "numeric" })}` : "дата народження не додана"}`;
+  $("#mobileProfileMeta").textContent = `${calculateAge(profile.birthDate)} · ${profile.birthDate ? `нар. ${formatDate(profile.birthDate, { day: "numeric", month: "long", year: "numeric" })}` : "дата народження не додана"}`;
   renderWeight(); renderToiletInsights(); renderReminders(); renderTodayEvents(); renderInsights(); renderAllEvents(); renderVaccinations();
 }
 
